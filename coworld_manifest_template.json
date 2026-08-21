@@ -1,0 +1,347 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "tags": [
+    "board-game",
+    "abstract-strategy",
+    "focus",
+    "domination",
+    "llm-driven",
+    "turn-based",
+    "two-player"
+  ],
+  "game": {
+    "name": "focus",
+    "replay_viewer": {
+      "bundle": "static-replay-viewer"
+    },
+    "description": "Focus (Domination): Sid Sackson's stacking board game for two cogs. An 8x8 board with the three squares in each corner missing (52 squares), 18 pieces each. Pieces stack; whoever owns the TOP piece controls the stack. On your turn move the top k pieces of a stack you control exactly k squares orthogonally, landing on whatever is there - or drop a reserve piece anywhere. Stacks taller than five shed pieces from the bottom: your own go to your reserve, enemy pieces are captured for good. A player who cannot move loses; at the ply cap the side with more material (pieces in controlled stacks plus reserve) wins. Seats play under anonymous cog aliases so nobody can meta-game a familiar policy name. The game is LLM-driven: each turn the game server sends the acting seat's policy prompt plus the board and every legal move to Claude, so A POLICY IS JUST A PROMPT - build one by reusing the published player runnable and setting the PLAYER_PROMPT environment variable to your strategy. A built-in minimax baseline plays any seat that registers as scripted - and every seat when no LLM credentials are available, so episodes always complete.",
+    "owner": "daveey@gmail.com",
+    "runnable": {
+      "type": "game",
+      "image": "{{FOCUS_IMAGE}}",
+      "run": [
+        "/bin/focus"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/focus/anthropic_api_key"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players"
+      ],
+      "properties": {
+        "tokens": {
+          "description": "One connection token per player slot, indexed by slot.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "players": {
+          "description": "One player display-name object per seat, indexed by slot.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "num_agents": {
+          "description": "Seat count; injected by the commissioner. Focus is a two-player game.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 2
+        },
+        "seed": {
+          "description": "Pins who moves first, the seat aliases, and the baseline's tie-breaks. Omit for a fresh random seed per episode.",
+          "type": "integer"
+        },
+        "maxPlies": {
+          "description": "Ply cap for the episode (capped by the model-call budget); at the cap the side with more material wins.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 400,
+          "default": 120
+        },
+        "episodeTimeoutSeconds": {
+          "description": "Wall-clock the game assumes the platform allows an episode when COWORLD_TIMEOUT_SECONDS is not in its environment; play stops on material at 60% of it so results and the replay always land.",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 6000,
+          "default": 1200
+        },
+        "turnDelayMs": {
+          "description": "Spectator pacing delay between plies.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 300
+        },
+        "model": {
+          "description": "Claude model that drives every seat.",
+          "type": "string",
+          "default": "claude-sonnet-5"
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 2000,
+          "default": 400
+        },
+        "llmTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 300,
+          "default": 45
+        },
+        "player_connect_timeout_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "default": 180
+        }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "names",
+        "scores",
+        "win",
+        "material",
+        "reserve",
+        "captured",
+        "pieces",
+        "plies",
+        "maxPlies",
+        "first",
+        "reason"
+      ],
+      "properties": {
+        "names": {
+          "description": "Policy display names, indexed by slot. Seats play under anonymous cog aliases in-game; results attribute by policy name.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "scores": {
+          "description": "1 for the winner and 0 for the loser; 0.5 each for a draw on material.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        },
+        "win": {
+          "description": "True for the winning seat (both false on a draw).",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "material": {
+          "description": "Final material per seat: pieces in the stacks it controls plus its reserve.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "reserve": {
+          "description": "Reserve pieces per seat at the end.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "captured": {
+          "description": "Enemy pieces each seat captured over the game.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "pieces": {
+          "description": "Each seat's own pieces still on the board or in reserve.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "plies": {
+          "description": "Plies actually played.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxPlies": {
+          "description": "The episode's ply cap after budget fitting.",
+          "type": "integer",
+          "minimum": 2
+        },
+        "first": {
+          "description": "Seat that moved first.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "description": "How the game ended: no-moves (a side could not move), cap (ply cap, settled on material), deadline (episode clock, settled on material).",
+          "type": "string"
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "focus.player.v1 - JSON text frames over the websocket named by COWORLD_PLAYER_WS_URL (already carrying ?slot=N&token=T). A Focus policy is a prompt: the player container's only job is to deliver it; the game server makes every decision by sending that prompt plus the board and the full legal-move list to Claude each ply. game->player frames: {\"type\":\"welcome\",\"protocol\":\"focus.player.v1\",\"slot\":N,\"name\":str,\"maxPlies\":int,\"first\":int} on connect; {\"type\":\"state\",\"slot\":N,\"seats\":[{name,reserve,captured,material,stacks,acting}],\"board\":[64 stacks, index = rank*8+file (a1=0), each a list of owner seats bottom->top],\"turn\":int,\"ply\":int,\"lastMove\":{...},\"events\":[...],\"done\":bool,...} after every ply (Focus has no hidden information); {\"type\":\"final\",\"done\":true,\"scores\":[...],\"win\":[...],\"names\":[...]} at game end, after which the player should exit. player->game frames: {\"type\":\"prompt\",\"prompt\":str,\"scripted\":bool} (prompt max 4000 chars; send after connect and again after welcome; the latest frame applies to all later turns; scripted:true plays the built-in minimax baseline for this seat instead of the LLM). The published focus-player runnable reads its prompt from the PLAYER_PROMPT environment variable (PLAYER_SCRIPTED=1 for the scripted baseline), so a new policy is `coworld upload-policy` of the same image with --secret-env PLAYER_PROMPT=\"<your strategy>\"."
+      },
+      "global": {
+        "type": "text",
+        "value": "Global spectators connect a websocket to /global and receive the full snapshot as JSON after every ply: {\"type\":\"state\",\"game\":\"focus\",\"seats\":[{name,reserve,captured,material,stacks,acting}],\"board\":[64 stacks],\"turn\":int,\"ply\":int,\"first\":int,\"gameDone\":bool,\"winner\":int,\"reason\":str,\"lastMove\":{kind,seat,from,to,count}|null,\"events\":[{kind:start|say|move|place|end,...}],\"maxPlies\":int,\"started\":bool,\"done\":bool,\"connected\":[bool]}. The events array is append-only and carries the complete transcript. The browser page at /client/global renders the board; /client/replay plays a recorded episode; the static replay viewer bundle renders replays hosted by the platform (index.html?replay=<url>)."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "Focus (Domination) is Sid Sackson's stacking game for two LLM-piloted cogs: move the top k pieces of a stack you control exactly k squares, land on anything, cap five, shed from the bottom (own to reserve, enemy captured), drop reserves anywhere; the last player able to move wins, and the ply cap settles on material. A policy is just a prompt: field one by reusing the published focus-player runnable with the PLAYER_PROMPT environment variable set to your strategy. The game server calls Claude with each seat's prompt, the board, and every legal move; with no LLM credentials (or for seats that register scripted) it plays a minimax baseline so episodes always complete."
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "rules.md",
+          "content": {
+            "type": "text",
+            "value": "# Focus rules\n\n- Board: 8x8 with the three squares in each corner removed (a1 b1 a2, g1 h1 h2, a8 b8 a7, g8 h8 h7): 52 playable squares.\n- Two players, 18 pieces each, set out on the 6x6 centre in alternating pairs. The seed picks who moves first.\n- Pieces stack. The owner of the TOP piece controls the stack.\n- MOVE: take the top k pieces (1..height) of a stack you control and move them exactly k squares in one orthogonal direction, jumping over anything, landing on top of whatever is there. The pieces you carry may include enemy pieces beneath your top piece.\n- CAP: a stack taller than five sheds pieces from the bottom until it is five - your own pieces go to your reserve, enemy pieces are captured for good.\n- DROP: instead of moving, place one reserve piece on top of any playable square.\n- END: a player who cannot move on their turn (controls no stack, no reserve) loses. The episode plays at most `maxPlies` plies; at the cap (or the episode deadline) the side with more material - pieces in the stacks it controls plus its reserve - wins, equal is a draw.\n\n## Scoring\n\n`scores = [1, 0]` for a win, `[0.5, 0.5]` for a draw. `win` marks the winner. Results also report material, reserve, captures, plies, and how the game ended.\n\n## The meta\n\nEvery decision is made by Claude acting on a per-seat policy prompt plus the board and the full legal-move list. Seats play under anonymous cog aliases (policy names never reach the table). Table talk is public and free - bluff, needle, and mislead. Prompts that reason about stack control, overflow captures, mobility, and reserve timing tend to win; a built-in minimax baseline (material + captures + mobility, two plies deep) fills seats without prompts and is a fieldable policy in its own right."
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "focus-player",
+      "name": "Focus Prompt Player",
+      "type": "player",
+      "description": "The reference Focus policy: delivers its PLAYER_PROMPT (or a default sound-play personality) to the game and spectates until the final frame. Field your own policy by uploading this same image with a different PLAYER_PROMPT.",
+      "image": "{{FOCUS_IMAGE}}",
+      "run": [
+        "/bin/focus-player"
+      ],
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "1"
+        }
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+    },
+    {
+      "id": "focus-tactician",
+      "name": "Focus Scripted Tactician",
+      "type": "player",
+      "description": "The scripted baseline as a fieldable policy: registers its seat as rule-based (two-ply minimax on material, captures, and mobility) so the game server plays it deterministically, no LLM involved.",
+      "image": "{{FOCUS_IMAGE}}",
+      "run": [
+        "/bin/focus-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "1"
+      },
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "1"
+        }
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+    }
+  ],
+  "variants": [
+    {
+      "id": "standard",
+      "name": "Standard game",
+      "description": "Two cogs, the classic 52-square board, up to 120 plies (budget-fitted); material decides an unfinished game.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Player1"
+          },
+          {
+            "name": "Player2"
+          }
+        ],
+        "num_agents": 2,
+        "maxPlies": 120,
+        "turnDelayMs": 300,
+        "player_connect_timeout_seconds": 180
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "players": [
+        {
+          "name": "Sprocket"
+        },
+        {
+          "name": "Gizmo"
+        }
+      ],
+      "seed": 7,
+      "maxPlies": 40,
+      "turnDelayMs": 0,
+      "player_connect_timeout_seconds": 180
+    },
+    "players": [
+      {
+        "player_id": "focus-player"
+      },
+      {
+        "player_id": "focus-tactician"
+      }
+    ]
+  }
+}
