@@ -1,4 +1,4 @@
-version     = "0.1.1"
+version     = "0.1.2"
 author      = "daveey"
 description = "Babel: an emergent-language referential game for the Softmax Coworld platform. Four cogs, a 16-glyph alphabet that means nothing, and 24 rounds to make it mean something; a policy is just a prompt."
 license     = "MIT"

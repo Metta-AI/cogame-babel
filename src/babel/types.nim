@@ -55,7 +55,7 @@ proc defaultGameConfig*(): GameConfig =
     turnDelayMs: 300,
     playerConnectTimeoutSeconds: 180,
     model: "claude-sonnet-5",
-    maxOutputTokens: 400,
+    maxOutputTokens: 900,
     llmTimeoutSeconds: 45
   )
 
