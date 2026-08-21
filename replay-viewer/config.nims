@@ -30,14 +30,14 @@ switch("threads", "off")
 switch(
   "passL",
   (&"""
-  -o {distDir / "focus_replay.js"}
+  -o {distDir / "babel_replay.js"}
   -O2
   -s ALLOW_MEMORY_GROWTH
   -s ABORTING_MALLOC=1
   -s ENVIRONMENT=web
   -s MODULARIZE=1
-  -s EXPORT_NAME=FocusReplayModule
+  -s EXPORT_NAME=BabelReplayModule
   -s EXPORTED_RUNTIME_METHODS=HEAPU8
-  -s EXPORTED_FUNCTIONS=_main,_malloc,_free,_foc_load_replay,_foc_payload_ptr,_foc_payload_len,_foc_error_ptr,_foc_error_len
+  -s EXPORTED_FUNCTIONS=_main,_malloc,_free,_bab_load_replay,_bab_payload_ptr,_bab_payload_len,_bab_error_ptr,_bab_error_len
   """).replace("\n", " ")
 )

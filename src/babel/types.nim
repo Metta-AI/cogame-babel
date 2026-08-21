@@ -1,7 +1,7 @@
 import std/[json, strutils]
 
 type
-  FocusError* = object of CatchableError
+  BabelError* = object of CatchableError
 
   PlayerConfig* = object
     name*: string
@@ -10,7 +10,7 @@ type
     tokens*: seq[string]
     players*: seq[PlayerConfig]
     seed*: int
-    maxPlies*: int        ## ply cap for the episode (material decides)
+    rounds*: int          ## rounds in the episode (every seat plays every round)
     episodeTimeoutSeconds*: int ## assumed platform kill time when the env is silent
     sampled*: bool        ## true once the budget cap has been applied
     turnDelayMs*: int
@@ -19,38 +19,38 @@ type
     maxOutputTokens*: int
     llmTimeoutSeconds*: int
 
-  Direction* = enum
-    dirN = "N"
-    dirS = "S"
-    dirE = "E"
-    dirW = "W"
+  Scene* = object
+    shape*: int   ## 0..3: circle, square, triangle, star
+    colour*: int  ## 0..3: red, blue, green, yellow
+    count*: int   ## 0..3 meaning 1..4 copies
 
   EventKind* = enum
     evStart = "start"
-    evSay = "say"
-    evMove = "move"
-    evPlace = "place"
+    evRound = "round"
+    evSpeak = "speak"
+    evPick = "pick"
     evEnd = "end"
 
   GameEvent* = object
     kind*: EventKind
-    ply*: int           ## 0-based ply the event belongs to
-    seat*: int          ## acting seat; -1 for end
-    fromCell*: int      ## move: origin cell (0..63); -1 otherwise
-    toCell*: int        ## move/place: destination cell; -1 otherwise
-    count*: int         ## move: pieces carried
-    dir*: Direction     ## move only
-    carried*: seq[int]  ## move: owners of the carried pieces, bottom->top
-    stackAfter*: seq[int] ## move/place: destination stack after, bottom->top
-    captured*: int      ## enemy pieces stripped off the bottom
-    reserved*: int      ## own pieces stripped to the reserve
-    reserveAfter*: int  ## actor's reserve after the event; -1 otherwise
-    text*: string       ## say text; end reason; start: first seat alias
+    round*: int          ## 0-based round; end: rounds played; start: -1
+    pair*: int           ## speak/pick: 0 or 1; -1 otherwise
+    seat*: int           ## speak: speaker; pick: listener; -1 otherwise
+    other*: int          ## speak: listener; pick: speaker; -1 otherwise
+    tokens*: seq[int]    ## speak: the message, token ids 0..15
+    pick*: int           ## pick: 0..3 (A-D); -1 otherwise
+    correct*: bool       ## pick: the listener chose the target
+    scripted*: bool      ## speak/pick: decided by the scripted baseline
+    text*: string        ## speak/pick: the actor's notes after the reply; end: reason
+    speakers*: seq[int]  ## round: speaker per pair
+    listeners*: seq[int] ## round: listener per pair
+    targets*: seq[int]   ## round: target scene id per pair
+    lineups*: seq[seq[int]] ## round: the four candidate scene ids per pair
 
 proc defaultGameConfig*(): GameConfig =
   GameConfig(
     seed: 0,
-    maxPlies: 120,
+    rounds: 24,
     episodeTimeoutSeconds: 1200,
     turnDelayMs: 300,
     playerConnectTimeoutSeconds: 180,
@@ -65,7 +65,7 @@ proc update*(config: var GameConfig, configJson: string) =
     return
   let node = parseJson(configJson)
   if node.kind != JObject:
-    raise newException(FocusError, "config must be a JSON object")
+    raise newException(BabelError, "config must be a JSON object")
   if node.hasKey("tokens"):
     config.tokens = @[]
     for token in node["tokens"]:
@@ -76,8 +76,8 @@ proc update*(config: var GameConfig, configJson: string) =
       config.players.add(PlayerConfig(name: player["name"].getStr()))
   if node.hasKey("seed"):
     config.seed = node["seed"].getInt()
-  if node.hasKey("maxPlies"):
-    config.maxPlies = node["maxPlies"].getInt()
+  if node.hasKey("rounds"):
+    config.rounds = node["rounds"].getInt()
   if node.hasKey("episodeTimeoutSeconds"):
     config.episodeTimeoutSeconds = node["episodeTimeoutSeconds"].getInt()
   if node.hasKey("sampled"):
@@ -93,5 +93,5 @@ proc update*(config: var GameConfig, configJson: string) =
     config.maxOutputTokens = node["maxOutputTokens"].getInt()
   if node.hasKey("llmTimeoutSeconds"):
     config.llmTimeoutSeconds = node["llmTimeoutSeconds"].getInt()
-  if config.maxPlies < 2:
-    raise newException(FocusError, "maxPlies must be at least 2")
+  if config.rounds < 2:
+    raise newException(BabelError, "rounds must be at least 2")

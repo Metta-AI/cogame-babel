@@ -2,15 +2,15 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Focus — Table View</title>
+<title>Babel — Table View</title>
 <link rel="stylesheet" href="/client/chrome.css">
 </head>
 <body>
 <div id="layout">
   <div id="stage">
     <div id="topband">
-      <div id="wordmark">FO<span>CUS</span></div>
-      <div id="clock">PLY 0</div>
+      <div id="wordmark">BA<span>BEL</span></div>
+      <div id="clock">ROUND 0</div>
       <div id="topright">
         <span id="statuschip">connecting…</span>
         <button id="feedtoggle">LOG »</button>
@@ -36,8 +36,8 @@
   window.addEventListener("resize", fit);
   window.addEventListener("load", fit);
   fit();
-  FocusRenderer.bindFeedToggle(document.getElementById("feedtoggle"));
-  FocusRenderer.attachLive({
+  BabelRenderer.bindFeedToggle(document.getElementById("feedtoggle"));
+  BabelRenderer.attachLive({
     canvas: canvas,
     feed: document.getElementById("feed"),
     status: document.getElementById("statuschip"),

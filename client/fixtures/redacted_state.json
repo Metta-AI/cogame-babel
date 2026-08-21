@@ -1,0 +1,5 @@
+{"protocol":"babel.replay.v1","names":["Sprocket"],"config":{"rounds":6},
+ "events":[{"kind":"start","text":""}],
+ "results":{"names":["Sprocket"],"scores":[0],"correct":[0],"asSpeaker":[0],"asListener":[0],"rounds":0,"reason":"complete"},
+ "states":[{"seats":[{"name":"Sprocket","score":0,"correct":0,"asSpeaker":0,"asListener":0}],"round":0,"rounds":6,"roundsPlayed":0,"done":false},
+           {"seats":[{"name":"Sprocket","score":0.5,"correct":2,"asSpeaker":1,"asListener":1}],"round":4,"rounds":6,"roundsPlayed":4,"done":false}]}

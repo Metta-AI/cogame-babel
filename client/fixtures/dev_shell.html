@@ -2,8 +2,8 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Babel — Replay</title>
-<link rel="stylesheet" href="/client/chrome.css">
+<title>Babel — Dev Shell</title>
+<link rel="stylesheet" href="./chrome.css">
 </head>
 <body>
 <div id="layout">
@@ -12,7 +12,7 @@
       <div id="wordmark">BA<span>BEL</span></div>
       <div id="clock">ROUND 0</div>
       <div id="topright">
-        <span id="statuschip">replay</span>
+        <span id="statuschip">fixture</span>
         <button id="feedtoggle">LOG »</button>
       </div>
     </div>
@@ -33,9 +33,11 @@
     </div>
   <div id="feed"></div>
 </div>
-<div id="loading">LOADING REPLAY…</div>
-<script src="/client/renderer.js"></script>
+<div id="loading">LOADING FIXTURE…</div>
+<script src="./renderer.js"></script>
 <script>
+  // Dev shell: drives BabelRenderer.attachReplay straight from a JSON
+  // payload (?payload=<url>, default sample_replay.json) — no wasm needed.
   var canvas = document.getElementById("table");
   function fit() {
     canvas.width = canvas.clientWidth;
@@ -44,12 +46,10 @@
   window.addEventListener("resize", fit);
   window.addEventListener("load", fit);
   fit();
-  BabelRenderer.bindFeedToggle(document.getElementById("feedtoggle"), true);
-  var scheme = location.protocol === "https:" ? "wss://" : "ws://";
-  var socket = new WebSocket(scheme + location.host + "/replay");
-  socket.onmessage = function (frame) {
-    var payload = JSON.parse(frame.data);
-    if (payload.type !== "replay") return;
+  BabelRenderer.bindFeedToggle(document.getElementById("feedtoggle"), false);
+  var url = new URLSearchParams(location.search).get("payload") ||
+    "./sample_replay.json";
+  fetch(url).then(function (r) { return r.json(); }).then(function (payload) {
     document.getElementById("loading").style.display = "none";
     fit();
     BabelRenderer.attachReplay({
@@ -61,14 +61,26 @@
       clock: document.getElementById("clock"),
       scorebug: document.getElementById("scorebug"),
       endscreen: document.getElementById("endscreen"),
-      assetBase: "/client/assets",
+      assetBase: "./assets",
       payload: payload
     });
-    socket.onmessage = null;
-  };
-  socket.onerror = function () {
-    document.getElementById("loading").textContent = "REPLAY FAILED TO LOAD";
-  };
+    // ?at=N pauses playback parked after event N (screenshot rigs).
+    var at = new URLSearchParams(location.search).get("at");
+    if (at !== null) {
+      setTimeout(function () {
+        var scrub = document.getElementById("scrub");
+        var rect = scrub.getBoundingClientRect();
+        var n = (payload.events || []).length || 1;
+        var x = rect.left + Number(at) / n * rect.width + 0.5;
+        var init = { clientX: x, clientY: rect.top + 10, pointerId: 1,
+          bubbles: true };
+        scrub.dispatchEvent(new PointerEvent("pointerdown", init));
+        scrub.dispatchEvent(new PointerEvent("pointerup", init));
+      }, 400);
+    }
+  }).catch(function (e) {
+    document.getElementById("loading").textContent = "FIXTURE FAILED: " + e;
+  });
 </script>
 </body>
 </html>

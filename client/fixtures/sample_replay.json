@@ -1,0 +1,6438 @@
+{
+ "protocol": "babel.replay.v1",
+ "names": [
+  "Sprocket",
+  "Gizmo",
+  "Ratchet",
+  "Widget"
+ ],
+ "policyNames": [
+  "lexicon-v3",
+  "baseline (1)",
+  "glyphwright",
+  "baseline"
+ ],
+ "config": {
+  "rounds": 6,
+  "seed": 7,
+  "sampled": true,
+  "glyphs": [
+   "✦",
+   "⟐",
+   "⌬",
+   "⬡",
+   "⟠",
+   "⟁",
+   "⬠",
+   "⊠",
+   "⧫",
+   "⧎",
+   "⌘",
+   "⧲",
+   "❂",
+   "✿",
+   "⚹",
+   "⧊"
+  ],
+  "perm": [
+   [
+    3,
+    2,
+    13,
+    15,
+    12,
+    14,
+    8,
+    7,
+    11,
+    10,
+    4,
+    9,
+    1,
+    0,
+    6,
+    5
+   ],
+   [
+    9,
+    13,
+    1,
+    10,
+    7,
+    3,
+    5,
+    11,
+    12,
+    6,
+    0,
+    15,
+    8,
+    2,
+    4,
+    14
+   ],
+   [
+    8,
+    9,
+    4,
+    2,
+    6,
+    1,
+    3,
+    0,
+    12,
+    5,
+    10,
+    13,
+    7,
+    11,
+    15,
+    14
+   ],
+   [
+    9,
+    1,
+    10,
+    11,
+    4,
+    5,
+    7,
+    0,
+    2,
+    3,
+    13,
+    14,
+    15,
+    6,
+    12,
+    8
+   ]
+  ]
+ },
+ "events": [
+  {
+   "kind": "start",
+   "text": ""
+  },
+  {
+   "kind": "round",
+   "round": 0,
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ]
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 0,
+   "pair": 0,
+   "seat": 0,
+   "other": 1,
+   "tokens": [
+    2,
+    5,
+    10,
+    5,
+    14,
+    15
+   ],
+   "scripted": false,
+   "text": ""
+  },
+  {
+   "kind": "pick",
+   "round": 0,
+   "pair": 0,
+   "seat": 1,
+   "other": 0,
+   "pick": 0,
+   "correct": false,
+   "scripted": false,
+   "text": "Got it wrong — note the 2nd glyph."
+  },
+  {
+   "kind": "speak",
+   "round": 0,
+   "pair": 1,
+   "seat": 2,
+   "other": 3,
+   "tokens": [
+    2,
+    5,
+    8,
+    2,
+    12,
+    1
+   ],
+   "scripted": false,
+   "text": ""
+  },
+  {
+   "kind": "pick",
+   "round": 0,
+   "pair": 1,
+   "seat": 3,
+   "other": 2,
+   "pick": 0,
+   "correct": true,
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "round",
+   "round": 1,
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ]
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 1,
+   "pair": 0,
+   "seat": 0,
+   "other": 2,
+   "tokens": [
+    1,
+    7,
+    11,
+    1,
+    14
+   ],
+   "scripted": false,
+   "text": "Partner Gizmo: first glyph seems to be the shape? unclear."
+  },
+  {
+   "kind": "pick",
+   "round": 1,
+   "pair": 0,
+   "seat": 2,
+   "other": 0,
+   "pick": 3,
+   "correct": true,
+   "scripted": false,
+   "text": ""
+  },
+  {
+   "kind": "speak",
+   "round": 1,
+   "pair": 1,
+   "seat": 1,
+   "other": 3,
+   "tokens": [
+    1,
+    7,
+    10,
+    4,
+    9
+   ],
+   "scripted": false,
+   "text": "Got it wrong — note the 2nd glyph."
+  },
+  {
+   "kind": "pick",
+   "round": 1,
+   "pair": 1,
+   "seat": 3,
+   "other": 1,
+   "pick": 1,
+   "correct": false,
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "round",
+   "round": 2,
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ]
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 2,
+   "pair": 0,
+   "seat": 0,
+   "other": 3,
+   "tokens": [
+    2,
+    7,
+    10
+   ],
+   "scripted": false,
+   "text": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+  },
+  {
+   "kind": "pick",
+   "round": 2,
+   "pair": 0,
+   "seat": 3,
+   "other": 0,
+   "pick": 2,
+   "correct": true,
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "speak",
+   "round": 2,
+   "pair": 1,
+   "seat": 1,
+   "other": 2,
+   "tokens": [
+    3,
+    4,
+    9
+   ],
+   "scripted": false,
+   "text": "2nd glyph = colour (Sprocket uses it too)."
+  },
+  {
+   "kind": "pick",
+   "round": 2,
+   "pair": 1,
+   "seat": 2,
+   "other": 1,
+   "pick": 1,
+   "correct": true,
+   "scripted": false,
+   "text": "Sprocket's messages are long; only first 3 matter?"
+  },
+  {
+   "kind": "round",
+   "round": 3,
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ]
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 3,
+   "pair": 0,
+   "seat": 1,
+   "other": 0,
+   "tokens": [
+    3,
+    5,
+    9
+   ],
+   "scripted": false,
+   "text": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+  },
+  {
+   "kind": "pick",
+   "round": 3,
+   "pair": 0,
+   "seat": 0,
+   "other": 1,
+   "pick": 3,
+   "correct": false,
+   "scripted": false,
+   "text": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+  },
+  {
+   "kind": "speak",
+   "round": 3,
+   "pair": 1,
+   "seat": 3,
+   "other": 2,
+   "tokens": [
+    1,
+    7,
+    11
+   ],
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "pick",
+   "round": 3,
+   "pair": 1,
+   "seat": 2,
+   "other": 3,
+   "pick": 1,
+   "correct": true,
+   "scripted": false,
+   "text": "Sprocket's messages are long; only first 3 matter?"
+  },
+  {
+   "kind": "round",
+   "round": 4,
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ]
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 4,
+   "pair": 0,
+   "seat": 2,
+   "other": 0,
+   "tokens": [
+    1,
+    4,
+    10
+   ],
+   "scripted": false,
+   "text": "Confirmed: 3-slot code."
+  },
+  {
+   "kind": "pick",
+   "round": 4,
+   "pair": 0,
+   "seat": 0,
+   "other": 2,
+   "pick": 0,
+   "correct": true,
+   "scripted": false,
+   "text": "Widget is rigid: always 3 tokens in order shape/colour/count."
+  },
+  {
+   "kind": "speak",
+   "round": 4,
+   "pair": 1,
+   "seat": 3,
+   "other": 1,
+   "tokens": [
+    3,
+    7,
+    9
+   ],
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "pick",
+   "round": 4,
+   "pair": 1,
+   "seat": 1,
+   "other": 3,
+   "pick": 0,
+   "correct": true,
+   "scripted": false,
+   "text": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+  },
+  {
+   "kind": "round",
+   "round": 5,
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ]
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "speak",
+   "round": 5,
+   "pair": 0,
+   "seat": 3,
+   "other": 0,
+   "tokens": [
+    1,
+    4,
+    9
+   ],
+   "scripted": true,
+   "text": ""
+  },
+  {
+   "kind": "pick",
+   "round": 5,
+   "pair": 0,
+   "seat": 0,
+   "other": 3,
+   "pick": 2,
+   "correct": true,
+   "scripted": false,
+   "text": "Dictionary: pos1 shape, pos2 colour, pos3 count. Works w/ Widget & Ratchet."
+  },
+  {
+   "kind": "speak",
+   "round": 5,
+   "pair": 1,
+   "seat": 2,
+   "other": 1,
+   "tokens": [
+    1,
+    4,
+    10
+   ],
+   "scripted": false,
+   "text": "Confirmed: 3-slot code."
+  },
+  {
+   "kind": "pick",
+   "round": 5,
+   "pair": 1,
+   "seat": 1,
+   "other": 2,
+   "pick": 0,
+   "correct": true,
+   "scripted": false,
+   "text": "Same table code for everyone; trust positions."
+  },
+  {
+   "kind": "end",
+   "text": "complete",
+   "round": 6
+  }
+ ],
+ "results": {
+  "names": [
+   "lexicon-v3",
+   "baseline (1)",
+   "glyphwright",
+   "baseline"
+  ],
+  "scores": [
+   0.6666666666666666,
+   0.5,
+   1,
+   0.8333333333333334
+  ],
+  "correct": [
+   4,
+   3,
+   6,
+   5
+  ],
+  "asSpeaker": [
+   2,
+   1,
+   3,
+   3
+  ],
+  "asListener": [
+   2,
+   2,
+   3,
+   2
+  ],
+  "rounds": 6,
+  "maxRounds": 6,
+  "reason": "complete"
+ },
+ "states": [
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": -1,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": -1,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 0,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 0,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ],
+     "tokens": [
+      2,
+      5,
+      10,
+      5,
+      14,
+      15
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 0,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ],
+     "tokens": [
+      2,
+      5,
+      10,
+      5,
+      14,
+      15
+     ],
+     "pick": 0,
+     "correct": false
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 0,
+   "rounds": 6,
+   "roundsPlayed": 0,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ],
+     "tokens": [
+      2,
+      5,
+      10,
+      5,
+      14,
+      15
+     ],
+     "pick": 0,
+     "correct": false
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ],
+     "tokens": [
+      2,
+      5,
+      8,
+      2,
+      12,
+      1
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 0,
+   "rounds": 6,
+   "roundsPlayed": 1,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 1,
+     "target": 38,
+     "lineup": [
+      29,
+      22,
+      32,
+      38
+     ],
+     "tokens": [
+      2,
+      5,
+      10,
+      5,
+      14,
+      15
+     ],
+     "pick": 0,
+     "correct": false
+    },
+    {
+     "speaker": 2,
+     "listener": 3,
+     "target": 36,
+     "lineup": [
+      36,
+      38,
+      31,
+      35
+     ],
+     "tokens": [
+      2,
+      5,
+      8,
+      2,
+      12,
+      1
+     ],
+     "pick": 0,
+     "correct": true
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": ""
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 1,
+   "rounds": 6,
+   "roundsPlayed": 1,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Partner Gizmo: first glyph seems to be the shape? unclear."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 1,
+   "rounds": 6,
+   "roundsPlayed": 1,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ],
+     "tokens": [
+      1,
+      7,
+      11,
+      1,
+      14
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Partner Gizmo: first glyph seems to be the shape? unclear."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 1,
+   "rounds": 6,
+   "roundsPlayed": 1,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ],
+     "tokens": [
+      1,
+      7,
+      11,
+      1,
+      14
+     ],
+     "pick": 3,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Partner Gizmo: first glyph seems to be the shape? unclear."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 1,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 1,
+   "rounds": 6,
+   "roundsPlayed": 1,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ],
+     "tokens": [
+      1,
+      7,
+      11,
+      1,
+      14
+     ],
+     "pick": 3,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ],
+     "tokens": [
+      1,
+      7,
+      10,
+      4,
+      9
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "Partner Gizmo: first glyph seems to be the shape? unclear."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 1,
+   "rounds": 6,
+   "roundsPlayed": 2,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      29,
+      3,
+      53,
+      31
+     ],
+     "tokens": [
+      1,
+      7,
+      11,
+      1,
+      14
+     ],
+     "pick": 3,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 3,
+     "target": 30,
+     "lineup": [
+      19,
+      11,
+      31,
+      30
+     ],
+     "tokens": [
+      1,
+      7,
+      10,
+      4,
+      9
+     ],
+     "pick": 1,
+     "correct": false
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Partner Gizmo: first glyph seems to be the shape? unclear."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 2,
+   "rounds": 6,
+   "roundsPlayed": 2,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0.5,
+     "correct": 1,
+     "asSpeaker": 0,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 2,
+   "rounds": 6,
+   "roundsPlayed": 2,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ],
+     "tokens": [
+      2,
+      7,
+      10
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "Got it wrong — note the 2nd glyph."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 2,
+   "rounds": 6,
+   "roundsPlayed": 2,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ],
+     "tokens": [
+      2,
+      7,
+      10
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 3,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0,
+     "correct": 0,
+     "asSpeaker": 0,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 2,
+     "notes": "2nd glyph = colour (Sprocket uses it too)."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 1,
+     "notes": ""
+    },
+    {
+     "name": "Widget",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 2,
+   "rounds": 6,
+   "roundsPlayed": 2,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ],
+     "tokens": [
+      2,
+      7,
+      10
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ],
+     "tokens": [
+      3,
+      4,
+      9
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.3333333333333333,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "2nd glyph = colour (Sprocket uses it too)."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 2,
+   "rounds": 6,
+   "roundsPlayed": 3,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 0,
+     "listener": 3,
+     "target": 46,
+     "lineup": [
+      8,
+      38,
+      46,
+      26
+     ],
+     "tokens": [
+      2,
+      7,
+      10
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 1,
+     "listener": 2,
+     "target": 49,
+     "lineup": [
+      45,
+      49,
+      24,
+      50
+     ],
+     "tokens": [
+      3,
+      4,
+      9
+     ],
+     "pick": 1,
+     "correct": true
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.3333333333333333,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "2nd glyph = colour (Sprocket uses it too)."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 3,
+   "rounds": 6,
+   "roundsPlayed": 3,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.3333333333333333,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 3,
+   "rounds": 6,
+   "roundsPlayed": 3,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ],
+     "tokens": [
+      3,
+      5,
+      9
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.3333333333333333,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 3,
+   "rounds": 6,
+   "roundsPlayed": 3,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ],
+     "tokens": [
+      3,
+      5,
+      9
+     ],
+     "pick": 3,
+     "correct": false
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.3333333333333333,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.6666666666666666,
+     "correct": 2,
+     "asSpeaker": 0,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 2,
+     "notes": ""
+    }
+   ],
+   "round": 3,
+   "rounds": 6,
+   "roundsPlayed": 3,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ],
+     "tokens": [
+      3,
+      5,
+      9
+     ],
+     "pick": 3,
+     "correct": false
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ],
+     "tokens": [
+      1,
+      7,
+      11
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.25,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "",
+     "partner": -1,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 4,
+     "asSpeaker": 1,
+     "asListener": 3,
+     "role": "",
+     "partner": -1,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.75,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 3,
+   "rounds": 6,
+   "roundsPlayed": 4,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 1,
+     "listener": 0,
+     "target": 53,
+     "lineup": [
+      53,
+      49,
+      24,
+      23
+     ],
+     "tokens": [
+      3,
+      5,
+      9
+     ],
+     "pick": 3,
+     "correct": false
+    },
+    {
+     "speaker": 3,
+     "listener": 2,
+     "target": 31,
+     "lineup": [
+      27,
+      31,
+      41,
+      55
+     ],
+     "tokens": [
+      1,
+      7,
+      11
+     ],
+     "pick": 1,
+     "correct": true
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.25,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 3,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 4,
+     "asSpeaker": 1,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "Sprocket's messages are long; only first 3 matter?"
+    },
+    {
+     "name": "Widget",
+     "score": 0.75,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 4,
+   "rounds": 6,
+   "roundsPlayed": 4,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 2,
+     "asSpeaker": 2,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 2,
+     "notes": "Hypothesis: msg = [shape, colour, count]. ⊗-ish glyph = green?"
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.25,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 3,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 4,
+     "asSpeaker": 1,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.75,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 4,
+   "rounds": 6,
+   "roundsPlayed": 4,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 3,
+     "asSpeaker": 2,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "Widget is rigid: always 3 tokens in order shape/colour/count."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.25,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 3,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.75,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 4,
+   "rounds": 6,
+   "roundsPlayed": 4,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": 0,
+     "correct": true
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.5,
+     "correct": 3,
+     "asSpeaker": 2,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "Widget is rigid: always 3 tokens in order shape/colour/count."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.25,
+     "correct": 1,
+     "asSpeaker": 1,
+     "asListener": 0,
+     "role": "listener",
+     "partner": 3,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 0,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.75,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 1,
+     "notes": ""
+    }
+   ],
+   "round": 4,
+   "rounds": 6,
+   "roundsPlayed": 4,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": 0,
+     "correct": true
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ],
+     "tokens": [
+      3,
+      7,
+      9
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6,
+     "correct": 3,
+     "asSpeaker": 2,
+     "asListener": 1,
+     "role": "",
+     "partner": -1,
+     "notes": "Widget is rigid: always 3 tokens in order shape/colour/count."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.4,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "",
+     "partner": -1,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "",
+     "partner": -1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 4,
+   "rounds": 6,
+   "roundsPlayed": 5,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 2,
+     "listener": 0,
+     "target": 18,
+     "lineup": [
+      18,
+      17,
+      6,
+      37
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": 0,
+     "correct": true
+    },
+    {
+     "speaker": 3,
+     "listener": 1,
+     "target": 61,
+     "lineup": [
+      61,
+      43,
+      60,
+      55
+     ],
+     "tokens": [
+      3,
+      7,
+      9
+     ],
+     "pick": 0,
+     "correct": true
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6,
+     "correct": 3,
+     "asSpeaker": 2,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Widget is rigid: always 3 tokens in order shape/colour/count."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.4,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 5,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6,
+     "correct": 3,
+     "asSpeaker": 2,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Widget is rigid: always 3 tokens in order shape/colour/count."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.4,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 5,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": [
+      1,
+      4,
+      9
+     ],
+     "pick": null,
+     "correct": null
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick0",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Dictionary: pos1 shape, pos2 colour, pos3 count. Works w/ Widget & Ratchet."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.4,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8,
+     "correct": 5,
+     "asSpeaker": 3,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 5,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": [
+      1,
+      4,
+      9
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": null,
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "speak1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "listener",
+     "partner": 3,
+     "notes": "Dictionary: pos1 shape, pos2 colour, pos3 count. Works w/ Widget & Ratchet."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.4,
+     "correct": 2,
+     "asSpeaker": 1,
+     "asListener": 1,
+     "role": "listener",
+     "partner": 2,
+     "notes": "3rd glyph = count, I think. Keep trailing glyphs ignored."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 5,
+     "asSpeaker": 2,
+     "asListener": 3,
+     "role": "speaker",
+     "partner": 1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8,
+     "correct": 5,
+     "asSpeaker": 3,
+     "asListener": 2,
+     "role": "speaker",
+     "partner": 0,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 5,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": [
+      1,
+      4,
+      9
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": null,
+     "correct": null
+    }
+   ],
+   "phase": "pick1",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": "Dictionary: pos1 shape, pos2 colour, pos3 count. Works w/ Widget & Ratchet."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.5,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": "Same table code for everyone; trust positions."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 6,
+     "asSpeaker": 3,
+     "asListener": 3,
+     "role": "",
+     "partner": -1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8333333333333334,
+     "correct": 5,
+     "asSpeaker": 3,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 6,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": [
+      1,
+      4,
+      9
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": 0,
+     "correct": true
+    }
+   ],
+   "phase": "between",
+   "gameDone": false,
+   "reason": ""
+  },
+  {
+   "seats": [
+    {
+     "name": "Sprocket",
+     "score": 0.6666666666666666,
+     "correct": 4,
+     "asSpeaker": 2,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": "Dictionary: pos1 shape, pos2 colour, pos3 count. Works w/ Widget & Ratchet."
+    },
+    {
+     "name": "Gizmo",
+     "score": 0.5,
+     "correct": 3,
+     "asSpeaker": 1,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": "Same table code for everyone; trust positions."
+    },
+    {
+     "name": "Ratchet",
+     "score": 1,
+     "correct": 6,
+     "asSpeaker": 3,
+     "asListener": 3,
+     "role": "",
+     "partner": -1,
+     "notes": "Confirmed: 3-slot code."
+    },
+    {
+     "name": "Widget",
+     "score": 0.8333333333333334,
+     "correct": 5,
+     "asSpeaker": 3,
+     "asListener": 2,
+     "role": "",
+     "partner": -1,
+     "notes": ""
+    }
+   ],
+   "round": 5,
+   "rounds": 6,
+   "roundsPlayed": 6,
+   "glyphs": [
+    "✦",
+    "⟐",
+    "⌬",
+    "⬡",
+    "⟠",
+    "⟁",
+    "⬠",
+    "⊠",
+    "⧫",
+    "⧎",
+    "⌘",
+    "⧲",
+    "❂",
+    "✿",
+    "⚹",
+    "⧊"
+   ],
+   "perm": [
+    [
+     3,
+     2,
+     13,
+     15,
+     12,
+     14,
+     8,
+     7,
+     11,
+     10,
+     4,
+     9,
+     1,
+     0,
+     6,
+     5
+    ],
+    [
+     9,
+     13,
+     1,
+     10,
+     7,
+     3,
+     5,
+     11,
+     12,
+     6,
+     0,
+     15,
+     8,
+     2,
+     4,
+     14
+    ],
+    [
+     8,
+     9,
+     4,
+     2,
+     6,
+     1,
+     3,
+     0,
+     12,
+     5,
+     10,
+     13,
+     7,
+     11,
+     15,
+     14
+    ],
+    [
+     9,
+     1,
+     10,
+     11,
+     4,
+     5,
+     7,
+     0,
+     2,
+     3,
+     13,
+     14,
+     15,
+     6,
+     12,
+     8
+    ]
+   ],
+   "pairs": [
+    {
+     "speaker": 3,
+     "listener": 0,
+     "target": 17,
+     "lineup": [
+      49,
+      31,
+      17,
+      56
+     ],
+     "tokens": [
+      1,
+      4,
+      9
+     ],
+     "pick": 2,
+     "correct": true
+    },
+    {
+     "speaker": 2,
+     "listener": 1,
+     "target": 18,
+     "lineup": [
+      18,
+      26,
+      10,
+      4
+     ],
+     "tokens": [
+      1,
+      4,
+      10
+     ],
+     "pick": 0,
+     "correct": true
+    }
+   ],
+   "phase": "done",
+   "gameDone": true,
+   "reason": "complete"
+  }
+ ]
+}

@@ -1,31 +1,31 @@
 {
   "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
   "tags": [
-    "board-game",
-    "abstract-strategy",
-    "focus",
-    "domination",
+    "emergent-communication",
+    "cooperative",
+    "language",
     "llm-driven",
     "turn-based",
-    "two-player"
+    "four-player",
+    "referential-game"
   ],
   "game": {
-    "name": "focus",
+    "name": "babel",
     "replay_viewer": {
       "bundle": "static-replay-viewer"
     },
-    "description": "Focus (Domination): Sid Sackson's stacking board game for two cogs. An 8x8 board with the three squares in each corner missing (52 squares), 18 pieces each. Pieces stack; whoever owns the TOP piece controls the stack. On your turn move the top k pieces of a stack you control exactly k squares orthogonally, landing on whatever is there - or drop a reserve piece anywhere. Stacks taller than five shed pieces from the bottom: your own go to your reserve, enemy pieces are captured for good. A player who cannot move loses; at the ply cap the side with more material (pieces in controlled stacks plus reserve) wins. Seats play under anonymous cog aliases so nobody can meta-game a familiar policy name. The game is LLM-driven: each turn the game server sends the acting seat's policy prompt plus the board and every legal move to Claude, so A POLICY IS JUST A PROMPT - build one by reusing the published player runnable and setting the PLAYER_PROMPT environment variable to your strategy. A built-in minimax baseline plays any seat that registers as scripted - and every seat when no LLM credentials are available, so episodes always complete.",
+    "description": "Babel: an emergent-language referential game for four LLM-piloted cogs. A 16-glyph alphabet that means nothing, and 24 rounds to make it mean something. Every round the four seats split into two pairs, each with a SPEAKER and a LISTENER (partners and roles rotate so every ordered relation occurs once per six rounds). The speaker sees a target scene - a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4) - and sends a message of 1 to 8 glyphs. The listener sees the message and a lineup of four scenes (the target, a near miss, a partial match, and a clear miss) and picks one. Both score when the pick is right. Nothing but glyphs crosses between seats, and every seat sees the 16 tokens under its own seeded symbols in its own order, so no convention can be agreed in advance: meaning has to be grounded in-episode from feedback. Each seat keeps private notes the server feeds back every round (spectators watch the dictionaries form). Seats play under anonymous cog aliases. The game is LLM-driven: the server sends the acting seat's policy prompt plus its alphabet, notes, history, and the target or the message and lineup to Claude, so A POLICY IS JUST A PROMPT - build one by reusing the published player runnable and setting the PLAYER_PROMPT environment variable to your strategy. A built-in code-and-decode baseline plays any seat that registers as scripted - and every seat when no LLM credentials are available, so episodes always complete.",
     "owner": "daveey@gmail.com",
     "runnable": {
       "type": "game",
-      "image": "{{FOCUS_IMAGE}}",
+      "image": "{{BABEL_IMAGE}}",
       "run": [
-        "/bin/focus"
+        "/bin/babel"
       ],
       "env": {
-        "ANTHROPIC_API_KEY_URI": "secret://coworld/focus/anthropic_api_key"
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/babel/anthropic_api_key"
       },
-      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+      "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
     },
     "config_schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -39,8 +39,8 @@
         "tokens": {
           "description": "One connection token per player slot, indexed by slot.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "string",
             "minLength": 1
@@ -49,8 +49,8 @@
         "players": {
           "description": "One player display-name object per seat, indexed by slot.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -66,31 +66,31 @@
           }
         },
         "num_agents": {
-          "description": "Seat count; injected by the commissioner. Focus is a two-player game.",
+          "description": "Seat count; injected by the commissioner. Babel is a four-player game.",
           "type": "integer",
-          "minimum": 2,
-          "maximum": 2
+          "minimum": 4,
+          "maximum": 4
         },
         "seed": {
-          "description": "Pins who moves first, the seat aliases, and the baseline's tie-breaks. Omit for a fresh random seed per episode.",
+          "description": "Pins the alphabet, every seat's view of it, the pairing schedule with its targets and lineups, the seat aliases, and the baseline's tie-breaks. Omit for a fresh random seed per episode.",
           "type": "integer"
         },
-        "maxPlies": {
-          "description": "Ply cap for the episode (capped by the model-call budget); at the cap the side with more material wins.",
+        "rounds": {
+          "description": "Rounds in the episode (capped by the model-call budget: four calls per round). Every seat plays every round.",
           "type": "integer",
           "minimum": 2,
-          "maximum": 400,
-          "default": 120
+          "maximum": 60,
+          "default": 24
         },
         "episodeTimeoutSeconds": {
-          "description": "Wall-clock the game assumes the platform allows an episode when COWORLD_TIMEOUT_SECONDS is not in its environment; play stops on material at 60% of it so results and the replay always land.",
+          "description": "Wall-clock the game assumes the platform allows an episode when COWORLD_TIMEOUT_SECONDS is not in its environment; play stops after the current round at 60% of it so results and the replay always land.",
           "type": "integer",
           "minimum": 60,
           "maximum": 6000,
           "default": 1200
         },
         "turnDelayMs": {
-          "description": "Spectator pacing delay between plies.",
+          "description": "Spectator pacing delay between rounds.",
           "type": "integer",
           "minimum": 0,
           "maximum": 10000,
@@ -127,102 +127,76 @@
       "required": [
         "names",
         "scores",
-        "win",
-        "material",
-        "reserve",
-        "captured",
-        "pieces",
-        "plies",
-        "maxPlies",
-        "first",
+        "correct",
+        "asSpeaker",
+        "asListener",
+        "rounds",
+        "maxRounds",
         "reason"
       ],
       "properties": {
         "names": {
           "description": "Policy display names, indexed by slot. Seats play under anonymous cog aliases in-game; results attribute by policy name.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "string"
           }
         },
         "scores": {
-          "description": "1 for the winner and 0 for the loser; 0.5 each for a draw on material.",
+          "description": "Share of the seat's rounds (either role) in which the listener picked the target: correct / rounds played, 0..1.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
           }
         },
-        "win": {
-          "description": "True for the winning seat (both false on a draw).",
+        "correct": {
+          "description": "Successful rounds the seat was in, as speaker or listener.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": {
-            "type": "boolean"
-          }
-        },
-        "material": {
-          "description": "Final material per seat: pieces in the stacks it controls plus its reserve.",
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "integer",
             "minimum": 0
           }
         },
-        "reserve": {
-          "description": "Reserve pieces per seat at the end.",
+        "asSpeaker": {
+          "description": "Successful rounds in which the seat was the speaker.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "integer",
             "minimum": 0
           }
         },
-        "captured": {
-          "description": "Enemy pieces each seat captured over the game.",
+        "asListener": {
+          "description": "Successful rounds in which the seat was the listener.",
           "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
+          "minItems": 4,
+          "maxItems": 4,
           "items": {
             "type": "integer",
             "minimum": 0
           }
         },
-        "pieces": {
-          "description": "Each seat's own pieces still on the board or in reserve.",
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": {
-            "type": "integer",
-            "minimum": 0
-          }
-        },
-        "plies": {
-          "description": "Plies actually played.",
+        "rounds": {
+          "description": "Rounds actually played.",
           "type": "integer",
           "minimum": 0
         },
-        "maxPlies": {
-          "description": "The episode's ply cap after budget fitting.",
+        "maxRounds": {
+          "description": "The episode's round count after budget fitting.",
           "type": "integer",
           "minimum": 2
         },
-        "first": {
-          "description": "Seat that moved first.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1
-        },
         "reason": {
-          "description": "How the game ended: no-moves (a side could not move), cap (ply cap, settled on material), deadline (episode clock, settled on material).",
+          "description": "How the episode ended: complete (all rounds played) or deadline (episode clock; scores use the rounds played).",
           "type": "string"
         }
       }
@@ -230,17 +204,17 @@
     "protocols": {
       "player": {
         "type": "text",
-        "value": "focus.player.v1 - JSON text frames over the websocket named by COWORLD_PLAYER_WS_URL (already carrying ?slot=N&token=T). A Focus policy is a prompt: the player container's only job is to deliver it; the game server makes every decision by sending that prompt plus the board and the full legal-move list to Claude each ply. game->player frames: {\"type\":\"welcome\",\"protocol\":\"focus.player.v1\",\"slot\":N,\"name\":str,\"maxPlies\":int,\"first\":int} on connect; {\"type\":\"state\",\"slot\":N,\"seats\":[{name,reserve,captured,material,stacks,acting}],\"board\":[64 stacks, index = rank*8+file (a1=0), each a list of owner seats bottom->top],\"turn\":int,\"ply\":int,\"lastMove\":{...},\"events\":[...],\"done\":bool,...} after every ply (Focus has no hidden information); {\"type\":\"final\",\"done\":true,\"scores\":[...],\"win\":[...],\"names\":[...]} at game end, after which the player should exit. player->game frames: {\"type\":\"prompt\",\"prompt\":str,\"scripted\":bool} (prompt max 4000 chars; send after connect and again after welcome; the latest frame applies to all later turns; scripted:true plays the built-in minimax baseline for this seat instead of the LLM). The published focus-player runnable reads its prompt from the PLAYER_PROMPT environment variable (PLAYER_SCRIPTED=1 for the scripted baseline), so a new policy is `coworld upload-policy` of the same image with --secret-env PLAYER_PROMPT=\"<your strategy>\"."
+        "value": "babel.player.v1 - JSON text frames over the websocket named by COWORLD_PLAYER_WS_URL (already carrying ?slot=N&token=T). A Babel policy is a prompt: the player container's only job is to deliver it; the game server makes every decision by sending that prompt plus the seat's alphabet, private notes, own history, and the target (speaker) or the message and lineup (listener) to Claude. game->player frames: {\"type\":\"welcome\",\"protocol\":\"babel.player.v1\",\"slot\":N,\"name\":str,\"rounds\":int} on connect; {\"type\":\"state\",\"slot\":N,\"name\":str,\"seat\":{score,correct,asSpeaker,asListener,roundsPlayed},\"round\":int,\"rounds\":int,\"roundsPlayed\":int,\"started\":bool,\"done\":bool,\"reason\":str} after every event - redacted to the seat's own tallies because Babel has hidden information (targets, lineups, notes, and the other pair's traffic are not for the seats; decisions are server-side so nothing is lost); {\"type\":\"final\",\"done\":true,\"scores\":[...],\"correct\":[...],\"asSpeaker\":[...],\"asListener\":[...],\"names\":[...],\"rounds\":int,\"reason\":str} at episode end, after which the player should exit. player->game frames: {\"type\":\"prompt\",\"prompt\":str,\"scripted\":bool} (prompt max 4000 chars; send after connect and again after welcome; the latest frame applies to all later calls; scripted:true plays the built-in code-and-decode baseline for this seat instead of the LLM). The published babel-player runnable reads its prompt from the PLAYER_PROMPT environment variable (PLAYER_SCRIPTED=1 for the scripted baseline), so a new policy is `coworld upload-policy` of the same image with --secret-env PLAYER_PROMPT=\"<your strategy>\"."
       },
       "global": {
         "type": "text",
-        "value": "Global spectators connect a websocket to /global and receive the full snapshot as JSON after every ply: {\"type\":\"state\",\"game\":\"focus\",\"seats\":[{name,reserve,captured,material,stacks,acting}],\"board\":[64 stacks],\"turn\":int,\"ply\":int,\"first\":int,\"gameDone\":bool,\"winner\":int,\"reason\":str,\"lastMove\":{kind,seat,from,to,count}|null,\"events\":[{kind:start|say|move|place|end,...}],\"maxPlies\":int,\"started\":bool,\"done\":bool,\"connected\":[bool]}. The events array is append-only and carries the complete transcript. The browser page at /client/global renders the board; /client/replay plays a recorded episode; the static replay viewer bundle renders replays hosted by the platform (index.html?replay=<url>)."
+        "value": "Global spectators connect a websocket to /global and receive the full snapshot as JSON after every event: {\"type\":\"state\",\"game\":\"babel\",\"seats\":[{name,score,correct,asSpeaker,asListener,role,partner,notes}],\"round\":int,\"rounds\":int,\"roundsPlayed\":int,\"glyphs\":[16 canonical glyphs],\"perm\":[4][16],\"pairs\":[{speaker,listener,target,lineup[4],tokens|null,pick|null,correct|null}],\"phase\":speak0|pick0|speak1|pick1|between|done,\"gameDone\":bool,\"reason\":str,\"policyNames\":[...],\"events\":[{kind:start|round|speak|pick|end,...}],\"started\":bool,\"done\":bool,\"connected\":[bool]}. Scene ids are shape*16+colour*4+count (0..63). The events array is append-only and carries the complete transcript, including every seat's notes. The browser page at /client/global renders the stage; /client/replay plays a recorded episode; the static replay viewer bundle renders replays hosted by the platform (index.html?replay=<url>)."
       }
     },
     "docs": {
       "readme": {
         "type": "text",
-        "value": "Focus (Domination) is Sid Sackson's stacking game for two LLM-piloted cogs: move the top k pieces of a stack you control exactly k squares, land on anything, cap five, shed from the bottom (own to reserve, enemy captured), drop reserves anywhere; the last player able to move wins, and the ply cap settles on material. A policy is just a prompt: field one by reusing the published focus-player runnable with the PLAYER_PROMPT environment variable set to your strategy. The game server calls Claude with each seat's prompt, the board, and every legal move; with no LLM credentials (or for seats that register scripted) it plays a minimax baseline so episodes always complete."
+        "value": "Babel is an emergent-language referential game for four LLM-piloted cogs: every round two speaker/listener pairs, a 16-glyph alphabet that each seat sees under its own symbols and order, a target scene (shape, colour, count) for the speaker, a message of 1-8 glyphs, a four-card lineup for the listener, and a point for both when the pick is right. Feedback every round, private notes fed back verbatim, no words ever. A policy is just a prompt: field one by reusing the published babel-player runnable with the PLAYER_PROMPT environment variable set to your strategy. With no LLM credentials (or for seats that register scripted) the server plays a code-and-decode baseline so episodes always complete."
       },
       "pages": [
         {
@@ -248,7 +222,7 @@
           "title": "rules.md",
           "content": {
             "type": "text",
-            "value": "# Focus rules\n\n- Board: 8x8 with the three squares in each corner removed (a1 b1 a2, g1 h1 h2, a8 b8 a7, g8 h8 h7): 52 playable squares.\n- Two players, 18 pieces each, set out on the 6x6 centre in alternating pairs. The seed picks who moves first.\n- Pieces stack. The owner of the TOP piece controls the stack.\n- MOVE: take the top k pieces (1..height) of a stack you control and move them exactly k squares in one orthogonal direction, jumping over anything, landing on top of whatever is there. The pieces you carry may include enemy pieces beneath your top piece.\n- CAP: a stack taller than five sheds pieces from the bottom until it is five - your own pieces go to your reserve, enemy pieces are captured for good.\n- DROP: instead of moving, place one reserve piece on top of any playable square.\n- END: a player who cannot move on their turn (controls no stack, no reserve) loses. The episode plays at most `maxPlies` plies; at the cap (or the episode deadline) the side with more material - pieces in the stacks it controls plus its reserve - wins, equal is a draw.\n\n## Scoring\n\n`scores = [1, 0]` for a win, `[0.5, 0.5]` for a draw. `win` marks the winner. Results also report material, reserve, captures, plies, and how the game ended.\n\n## The meta\n\nEvery decision is made by Claude acting on a per-seat policy prompt plus the board and the full legal-move list. Seats play under anonymous cog aliases (policy names never reach the table). Table talk is public and free - bluff, needle, and mislead. Prompts that reason about stack control, overflow captures, mobility, and reserve timing tend to win; a built-in minimax baseline (material + captures + mobility, two plies deep) fills seats without prompts and is a fieldable policy in its own right."
+            "value": "# Babel rules\n\n- Four seats. Every round the seats split into two pairs, each with a SPEAKER and a LISTENER. Round r (0-based) uses the matching M[r mod 3] of {(0,1),(2,3)}, {(0,2),(1,3)}, {(0,3),(1,2)}; within a pair the first seat speaks when (r div 3) mod 2 == 0, otherwise the second. Every ordered speaker->listener relation occurs once per six rounds.\n- A scene is a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4); scene id = shape*16 + colour*4 + (count-1).\n- Per pair per round the seed draws a target and a lineup of four scenes: the target, a near miss (shares two attributes), a partial (shares one), and a clear miss (shares none), shuffled and labelled A-D. The speaker sees only the target; the listener sees the message and the lineup.\n- The message is 1 to 8 tokens from a 16-token alphabet. Each seat sees the tokens under its own seeded symbols in its own order; glyph identity never survives the channel, only token identity does. Nothing else crosses between seats.\n- After the pick both pair members learn the target, the pick, and the verdict. Each seat's prompt carries its own history (never the other pair's) and its latest private notes (up to 600 characters, overwritten when a reply carries notes, kept when it does not). Notes are recorded in the event log for spectators.\n- The episode runs `rounds` rounds (default 24, capped to 60 by the model-call budget); the episode clock may end it early after the current round.\n\n## Scoring\n\nA round-pair succeeds when the listener picks the target. A seat's `correct` is its successes in the rounds it was in (either role); `score = correct / rounds played`. Results also report `asSpeaker` and `asListener` successes. Fully cooperative; the league ranks seats by mean episode score.\n\n## The meta\n\nEvery decision is made by Claude acting on a per-seat policy prompt plus the seat's alphabet, notes, history, and target (speaker) or message and lineup (listener). Prompts that invent a consistent compositional code (one glyph per attribute value), keep a per-partner dictionary in their notes, and prefer the near-miss reading when unsure tend to score; the built-in scripted baseline (fixed three-token code as speaker, count-based association decoder as listener) fills seats without prompts, is a fieldable policy in its own right, and is the consistent-convention partner a prompt has to adapt to."
           }
         }
       ]
@@ -256,13 +230,13 @@
   },
   "player": [
     {
-      "id": "focus-player",
-      "name": "Focus Prompt Player",
+      "id": "babel-player",
+      "name": "Babel Prompt Player",
       "type": "player",
-      "description": "The reference Focus policy: delivers its PLAYER_PROMPT (or a default sound-play personality) to the game and spectates until the final frame. Field your own policy by uploading this same image with a different PLAYER_PROMPT.",
-      "image": "{{FOCUS_IMAGE}}",
+      "description": "The reference Babel policy: delivers its PLAYER_PROMPT (or a default compositional-code strategy) to the game and spectates until the final frame. Field your own policy by uploading this same image with a different PLAYER_PROMPT.",
+      "image": "{{BABEL_IMAGE}}",
       "run": [
-        "/bin/focus-player"
+        "/bin/babel-player"
       ],
       "resources": {
         "requests": {
@@ -273,16 +247,16 @@
           "cpu": "1"
         }
       },
-      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+      "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
     },
     {
-      "id": "focus-tactician",
-      "name": "Focus Scripted Tactician",
+      "id": "babel-coder",
+      "name": "Babel Scripted Coder",
       "type": "player",
-      "description": "The scripted baseline as a fieldable policy: registers its seat as rule-based (two-ply minimax on material, captures, and mobility) so the game server plays it deterministically, no LLM involved.",
-      "image": "{{FOCUS_IMAGE}}",
+      "description": "The scripted code-and-decode baseline as a fieldable policy: registers its seat as rule-based (a fixed shape/colour/count token code as speaker, a count-based association decoder as listener) so the game server plays it deterministically, no LLM involved.",
+      "image": "{{BABEL_IMAGE}}",
       "run": [
-        "/bin/focus-player"
+        "/bin/babel-player"
       ],
       "env": {
         "PLAYER_SCRIPTED": "1"
@@ -296,14 +270,14 @@
           "cpu": "1"
         }
       },
-      "source_url": "https://github.com/Metta-AI/cogame-focus/tree/main"
+      "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
     }
   ],
   "variants": [
     {
       "id": "standard",
       "name": "Standard game",
-      "description": "Two cogs, the classic 52-square board, up to 120 plies (budget-fitted); material decides an unfinished game.",
+      "description": "Four cogs, a fresh 16-glyph alphabet, 24 rounds (budget-fitted); every ordered speaker-listener relation four times.",
       "game_config": {
         "players": [
           {
@@ -311,10 +285,16 @@
           },
           {
             "name": "Player2"
+          },
+          {
+            "name": "Player3"
+          },
+          {
+            "name": "Player4"
           }
         ],
-        "num_agents": 2,
-        "maxPlies": 120,
+        "num_agents": 4,
+        "rounds": 24,
         "turnDelayMs": 300,
         "player_connect_timeout_seconds": 180
       }
@@ -328,19 +308,32 @@
         },
         {
           "name": "Gizmo"
+        },
+        {
+          "name": "Ratchet"
+        },
+        {
+          "name": "Widget"
         }
       ],
+      "num_agents": 4,
       "seed": 7,
-      "maxPlies": 40,
+      "rounds": 6,
       "turnDelayMs": 0,
       "player_connect_timeout_seconds": 180
     },
     "players": [
       {
-        "player_id": "focus-player"
+        "player_id": "babel-player"
       },
       {
-        "player_id": "focus-tactician"
+        "player_id": "babel-coder"
+      },
+      {
+        "player_id": "babel-player"
+      },
+      {
+        "player_id": "babel-coder"
       }
     ]
   }

@@ -1,6 +1,6 @@
-version     = "0.1.3"
+version     = "0.1.0"
 author      = "daveey"
-description = "Focus (Domination): LLM-driven stacking board game for the Softmax Coworld platform. Two cogs, 52 squares, stacks capped at five; a policy is just a prompt."
+description = "Babel: an emergent-language referential game for the Softmax Coworld platform. Four cogs, a 16-glyph alphabet that means nothing, and 24 rounds to make it mean something; a policy is just a prompt."
 license     = "MIT"
 
 srcDir = "src"

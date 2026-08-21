@@ -1,14 +1,14 @@
-## Focus static replay viewer, wasm side.
+## Babel static replay viewer, wasm side.
 ##
-## JS hands the raw replay bytes to foc_load_replay; this module parses
+## JS hands the raw replay bytes to bab_load_replay; this module parses
 ## them with the SAME sim code the game server runs, re-derives the
-## per-event board states, and exposes the enriched payload (identical
+## per-event table states, and exposes the enriched payload (identical
 ## shape to the game's /replay websocket message) for the shared
 ## renderer.js to draw.
 
 import
   std/json,
-  focus/sim
+  babel/sim
 
 var
   payload: string
@@ -19,13 +19,13 @@ proc bytesFromPointer(data: ptr uint8, length: int): string =
   if length > 0:
     copyMem(result[0].addr, data, length)
 
-proc focLoadReplay(data: ptr uint8, length: cint): cint
-    {.exportc: "foc_load_replay", cdecl.} =
+proc babLoadReplay(data: ptr uint8, length: cint): cint
+    {.exportc: "bab_load_replay", cdecl.} =
   try:
     lastError = ""
     let replay = parseJson(bytesFromPointer(data, int(length)))
     var config = defaultGameConfig()
-    config.maxPlies = replay["config"]{"maxPlies"}.getInt(120)
+    config.rounds = replay["config"]{"rounds"}.getInt(24)
     config.seed = replay["config"]{"seed"}.getInt(0)
     config.sampled = true
     for name in replay["names"]:
@@ -38,7 +38,7 @@ proc focLoadReplay(data: ptr uint8, length: cint): cint
       states.add(frame.tableStateJson())
     payload = $ %*{
       "type": "replay",
-      "protocol": replay{"protocol"}.getStr("focus.replay.v1"),
+      "protocol": replay{"protocol"}.getStr("babel.replay.v1"),
       "names": replay["names"],
       "policyNames": replay{"policyNames"},
       "config": replay["config"],
@@ -51,22 +51,22 @@ proc focLoadReplay(data: ptr uint8, length: cint): cint
     lastError = error.msg
     return 0
 
-proc focPayloadPointer(): ptr uint8 {.exportc: "foc_payload_ptr", cdecl.} =
+proc babPayloadPointer(): ptr uint8 {.exportc: "bab_payload_ptr", cdecl.} =
   if payload.len == 0:
     nil
   else:
     cast[ptr uint8](payload[0].addr)
 
-proc focPayloadLength(): cint {.exportc: "foc_payload_len", cdecl.} =
+proc babPayloadLength(): cint {.exportc: "bab_payload_len", cdecl.} =
   cint(payload.len)
 
-proc focErrorPointer(): ptr uint8 {.exportc: "foc_error_ptr", cdecl.} =
+proc babErrorPointer(): ptr uint8 {.exportc: "bab_error_ptr", cdecl.} =
   if lastError.len == 0:
     nil
   else:
     cast[ptr uint8](lastError[0].addr)
 
-proc focErrorLength(): cint {.exportc: "foc_error_len", cdecl.} =
+proc babErrorLength(): cint {.exportc: "bab_error_len", cdecl.} =
   cint(lastError.len)
 
 when defined(emscripten):

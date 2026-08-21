@@ -1,6 +1,6 @@
-# Focus game + player image. One image, two entrypoints:
-#   /bin/focus         - the game server (default)
-#   /bin/focus-player  - the prompt-delivery player
+# Babel game + player image. One image, two entrypoints:
+#   /bin/babel         - the game server (default)
+#   /bin/babel-player  - the prompt-delivery player
 FROM debian:bookworm-slim AS build
 
 RUN apt-get update && \
@@ -27,7 +27,7 @@ https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-ARM64; \
 
 ENV PATH="/root/.nimby/nim/bin:$PATH"
 
-WORKDIR /workspace/focus
+WORKDIR /workspace/babel
 COPY nimby.lock .
 RUN nimby --global sync nimby.lock
 
@@ -41,10 +41,10 @@ RUN rm -f nim.cfg && \
   done && \
   echo '--path:"src"' >> nim.cfg && \
   nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
-    --nimcache:/tmp/focus-nimcache --out:focus src/focus.nim && \
+    --nimcache:/tmp/babel-nimcache --out:babel src/babel.nim && \
   nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
-    --nimcache:/tmp/focus-player-nimcache --out:focus-player \
-    src/focus_player.nim
+    --nimcache:/tmp/babel-player-nimcache --out:babel-player \
+    src/babel_player.nim
 
 # Run image.
 FROM debian:bookworm-slim
@@ -53,10 +53,10 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends ca-certificates libcurl4 && \
   rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace/focus
-COPY --from=build /workspace/focus/focus /bin/focus
-COPY --from=build /workspace/focus/focus-player /bin/focus-player
-COPY --from=build /workspace/focus/data ./data
-COPY --from=build /workspace/focus/client ./client
+WORKDIR /workspace/babel
+COPY --from=build /workspace/babel/babel /bin/babel
+COPY --from=build /workspace/babel/babel-player /bin/babel-player
+COPY --from=build /workspace/babel/data ./data
+COPY --from=build /workspace/babel/client ./client
 
-CMD ["/bin/focus"]
+CMD ["/bin/babel"]

@@ -431,3 +431,13 @@ body.feed-collapsed #feed { display: none; }
   text-align: center;
   margin: -10px 0 14px;
 }
+
+/* Babel: speak lines in the speaker's colour; pick lines dim until they
+   score; hollow pips for as-listener successes. */
+.feed-speak { color: var(--tc, var(--paper)); }
+.feed-round { color: var(--paper-dim); font-size: 11px; letter-spacing: 0.04em; }
+.feed-pick { color: var(--paper-dim); }
+.plate-pip.hollow {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--amber);
+}

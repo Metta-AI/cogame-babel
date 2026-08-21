@@ -1,23 +1,24 @@
-## Focus game server: implements the Coworld game contract.
+## Babel game server: implements the Coworld game contract.
 ##
 ## Endpoints:
 ##   GET /healthz                    - liveness
 ##   GET /client/global              - spectator page
 ##   GET /client/player              - player page (view-only; policies are prompts)
 ##   GET /client/replay              - replay page (replay mode)
-##   GET /client/renderer.js         - shared board renderer
+##   GET /client/renderer.js         - shared stage renderer
 ##   GET /client/assets/<name>       - sprites and fonts
 ##   WS  /player?slot=N&token=T      - player protocol (prompt delivery)
 ##   WS  /global                     - spectator snapshots
 ##   WS  /replay                     - replay payload (replay mode)
 ##
-## Player protocol (focus.player.v1), all JSON text frames:
+## Player protocol (babel.player.v1), all JSON text frames:
 ##   game -> player: {"type":"welcome","slot":N,"name":...}
-##                   {"type":"state",...} after every event batch
-##                   {"type":"final","scores":[...],"win":[...]}
+##                   {"type":"state",...} after every event (redacted to
+##                   the seat's own tallies: Babel has hidden information)
+##                   {"type":"final","scores":[...],"correct":[...]}
 ##   player -> game: {"type":"prompt","prompt":"...","scripted":bool}
 ##                   (max 4000 chars; scripted:true plays the built-in
-##                   minimax baseline for that seat)
+##                   code-and-decode baseline for that seat)
 
 import
   std/[json, locks, os, sets, strutils, tables, times],
@@ -83,27 +84,45 @@ proc snapshotJson(gs: GameState): JsonNode =
     connected.add(%gs.playerSockets.hasKey(slot))
   result = gs.sim.tableStateJson()
   result["type"] = %"state"
-  result["game"] = %"focus"
+  result["game"] = %"babel"
   result["policyNames"] = gs.policyNamesJson()
   result["events"] = events
-  result["maxPlies"] = %gs.config.maxPlies
   result["started"] = %gs.started
   result["done"] = %gs.sim.done
   result["connected"] = connected
 
+proc playerStateJson(gs: GameState, slot: int): JsonNode =
+  ## Babel has hidden information (targets, lineups, notes, and the other
+  ## pair's traffic are not for the seats), so a player sees only its own
+  ## seat's tallies, the round counter, and whether the episode is done.
+  ## Decisions are server-side, so this loses nothing.
+  %*{
+    "type": "state",
+    "slot": slot,
+    "name": gs.sim.names[slot],
+    "seat": {
+      "score": gs.sim.score(slot),
+      "correct": gs.sim.correct[slot],
+      "asSpeaker": gs.sim.asSpeaker[slot],
+      "asListener": gs.sim.asListener[slot],
+      "roundsPlayed": gs.sim.seatRounds[slot]
+    },
+    "round": gs.sim.round,
+    "rounds": gs.config.rounds,
+    "roundsPlayed": gs.sim.roundsPlayed,
+    "started": gs.started,
+    "done": gs.sim.done,
+    "reason": gs.sim.reason
+  }
+
 proc broadcastLocked(gs: GameState) =
-  ## Callers hold stateLock. Focus has no hidden information, so players
-  ## get the same board as spectators — minus the policy-name map.
+  ## Callers hold stateLock. Spectators get the whole table; players get
+  ## the redacted per-seat state.
   let payload = $gs.snapshotJson()
   for socket in gs.globalSockets:
     socket.send(payload)
   for slot, socket in gs.playerSockets:
-    var observation = gs.snapshotJson()
-    observation["slot"] = %slot
-    ## Players never learn who is behind a seat — that is the whole point
-    ## of the aliases — so the policy-name map is spectator-only.
-    observation.delete("policyNames")
-    socket.send($observation)
+    socket.send($gs.playerStateJson(slot))
 
 proc writeArtifact(uri, data, contentType, methodEnv: string) =
   ## Writes a Coworld artifact, honoring the platform's PUT/POST method hint.
@@ -121,6 +140,20 @@ proc writeArtifact(uri, data, contentType, methodEnv: string) =
   else:
     writeCogameUri(uri, data, contentType, methodEnv)
 
+proc alphabetConfigJson(sim: Sim): (JsonNode, JsonNode) =
+  ## The alphabet and per-seat views are derivable from the seed; they ride
+  ## in the replay config for the viewer's convenience.
+  var glyphs = newJArray()
+  for glyph in sim.glyphs:
+    glyphs.add(%glyph)
+  var perm = newJArray()
+  for seat in 0 ..< Seats:
+    var view = newJArray()
+    for index in sim.perm[seat]:
+      view.add(%index)
+    perm.add(view)
+  (glyphs, perm)
+
 proc replayPayload(gs: GameState, results: JsonNode): string =
   var names = newJArray()
   for name in gs.sim.names:
@@ -128,21 +161,24 @@ proc replayPayload(gs: GameState, results: JsonNode): string =
   var events = newJArray()
   for event in gs.sim.events:
     events.add(event.eventToJson())
+  let (glyphs, perm) = gs.sim.alphabetConfigJson()
   $ %*{
-    "protocol": "focus.replay.v" & $ReplayVersion,
+    "protocol": "babel.replay.v" & $ReplayVersion,
     "names": names,
     "policyNames": gs.policyNamesJson(),
     "config": {
-      "maxPlies": gs.config.maxPlies,
+      "rounds": gs.config.rounds,
+      "seed": gs.config.seed,
       "sampled": true,
-      "seed": gs.config.seed
+      "glyphs": glyphs,
+      "perm": perm
     },
     "events": events,
     "results": results
   }
 
 proc statesFromEvents(config: GameConfig, events: seq[GameEvent]): JsonNode =
-  ## One board-state object per event prefix, for scrubbing replays.
+  ## One table-state object per event prefix, for scrubbing replays.
   result = newJArray()
   for frame in replayMatch(config, events):
     result.add(frame.tableStateJson())
@@ -169,12 +205,11 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) =
       "type": "final",
       "done": true,
       "scores": results["scores"],
-      "win": results["win"],
+      "correct": results["correct"],
+      "asSpeaker": results["asSpeaker"],
+      "asListener": results["asListener"],
       "names": aliasNames,
-      "material": results["material"],
-      "reserve": results["reserve"],
-      "captured": results["captured"],
-      "plies": results["plies"],
+      "rounds": results["rounds"],
       "reason": results["reason"]
     }
     for slot, socket in state.playerSockets:
@@ -183,7 +218,7 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) =
     state.broadcastLocked()
 
   sleep(500)
-  echo "focus: writing results and replay"
+  echo "babel: writing results and replay"
   writeArtifact(
     runtimeConfig.resultsUri, $results, "application/json",
     "COGAME_RESULTS_METHOD"
@@ -193,13 +228,24 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) =
     "COGAME_SAVE_REPLAY_METHOD"
   )
   sleep(500)
-  echo "focus: episode complete, shutting down"
+  echo "babel: episode complete, shutting down"
   quit(0)
 
 const PlayBudgetFraction* = 0.6
   ## Share of the platform's episode timeout spent playing. The rest covers
   ## container start, player connects, and writing the artifacts — the part
   ## that must never be the thing that runs out of time.
+
+proc decisionText(sim: Sim, call: Call, decision: Decision): string =
+  case call.kind
+  of ckSpeak:
+    sim.names[call.seat] & " -> " & sim.names[sim.plan.listeners[call.pair]] &
+      ": " & sim.messageText(call.seat, decision.tokens) & " " &
+      $decision.tokens
+  of ckPick:
+    sim.names[call.seat] & " picks " & lineupLetter(decision.pick)
+  else:
+    ""
 
 proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
@@ -217,7 +263,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
 
     withLock stateLock:
       state.started = true
-      echo "focus: starting with ", state.playerSockets.len, "/",
+      echo "babel: starting with ", state.playerSockets.len, "/",
         config.tokens.len, " players connected"
       state.broadcastLocked()
 
@@ -240,54 +286,70 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       if timeoutSeconds > 0.0: gameStart + timeoutSeconds * PlayBudgetFraction
       else: 0.0
     if playDeadline > 0.0:
-      echo "focus: episode timeout ", timeoutSeconds.int, "s (",
+      echo "babel: episode timeout ", timeoutSeconds.int, "s (",
         (if hostedTimeout.len > 0: "from env" else: "assumed"),
         "); playing until ", (timeoutSeconds * PlayBudgetFraction).int, "s"
 
     while true:
       var simCopy: Sim
-      var seat: int
+      var call: Call
       var seatPrompt: string
       var seatScripted: bool
-      var header: string
       withLock stateLock:
         if state.sim.done:
           break
-        if playDeadline > 0.0 and epochTime() > playDeadline:
-          ## The platform kills an episode that outruns its timeout and
-          ## keeps nothing at all, so give up plies rather than the whole
-          ## result: settle on material now.
-          echo "focus: episode deadline reached after ", state.sim.ply,
-            "/", config.maxPlies, " plies; settling on material"
-          state.sim.endEarly()
+        call = state.sim.currentCall()
+        let pastDeadline = playDeadline > 0.0 and epochTime() > playDeadline
+        if call.kind == ckRound:
+          if pastDeadline:
+            ## The platform kills an episode that outruns its timeout and
+            ## keeps nothing at all, so give up rounds rather than the
+            ## whole result: stop here, between rounds.
+            echo "babel: episode deadline reached after ",
+              state.sim.roundsPlayed, "/", config.rounds,
+              " rounds; ending early"
+            state.sim.endEarly()
+            state.broadcastLocked()
+            break
+          state.sim.beginRound()
+          echo "babel: round ", state.sim.round + 1, " of ", config.rounds,
+            " at ", (epochTime() - gameStart).int, "s"
           state.broadcastLocked()
-          break
+          continue
         simCopy = state.sim
-        seat = state.sim.turn
-        seatPrompt = state.prompts[seat]
-        seatScripted = state.scripted[seat]
-        header = "Ply " & $(state.sim.ply + 1) & " of at most " &
-          $config.maxPlies & "."
+        seatPrompt = state.prompts[call.seat]
+        ## Past the deadline the rest of the current round is decided by
+        ## the scripted baseline (instant) so the round completes.
+        seatScripted = state.scripted[call.seat] or pastDeadline
 
       ## The slow part (Claude) runs outside the lock on a snapshot; only
       ## this thread mutates the sim, so the snapshot cannot go stale.
-      let decision = client.decide(simCopy, seat, seatPrompt,
-        scripted = seatScripted, header = header)
+      let decision = client.decide(simCopy, call, seatPrompt,
+        scripted = seatScripted)
 
       withLock stateLock:
-        echo "focus: ply ", state.sim.ply + 1, " seat ", seat, " ",
-          moveText(decision.move), " at ", (epochTime() - gameStart).int, "s"
-        state.sim.recordSay(seat, decision.say)
+        echo "babel: round ", state.sim.round + 1, " pair ", call.pair, " ",
+          decisionText(state.sim, call, decision), " at ",
+          (epochTime() - gameStart).int, "s"
         try:
-          state.sim.applyMove(seat, decision.move)
-        except FocusError as error:
-          echo "focus: llm move rejected (", error.msg,
+          if call.kind == ckSpeak:
+            state.sim.applySpeak(call.pair, decision.tokens, decision.notes,
+              seatScripted)
+          else:
+            state.sim.applyPick(call.pair, decision.pick, decision.notes,
+              seatScripted)
+        except BabelError as error:
+          echo "babel: llm reply rejected (", error.msg,
             "); using scripted fallback"
-          let fallback = client.scriptedAction(state.sim, seat)
-          state.sim.applyMove(seat, fallback.move)
+          let fallback = client.scriptedAction(state.sim, call)
+          if call.kind == ckSpeak:
+            state.sim.applySpeak(call.pair, fallback.tokens, "", true)
+          else:
+            state.sim.applyPick(call.pair, fallback.pick, "", true)
         state.broadcastLocked()
 
-      if config.turnDelayMs > 0:
+      ## Pace between rounds: after the pick that closes a round.
+      if config.turnDelayMs > 0 and call.kind == ckPick and call.pair == 1:
         sleep(config.turnDelayMs)
 
     ## Let the verdict land before the final frame.
@@ -362,15 +424,14 @@ proc playerUpgradeHandler(request: Request) {.gcsafe.} =
     withLock stateLock:
       state.playerSockets[slot] = websocket
       state.socketSlots[websocket] = slot
-      echo "focus: player slot ", slot, " connected (",
+      echo "babel: player slot ", slot, " connected (",
         state.playerSockets.len, "/", state.config.tokens.len, ")"
       websocket.send($ %*{
         "type": "welcome",
-        "protocol": "focus.player.v1",
+        "protocol": "babel.player.v1",
         "slot": slot,
         "name": state.sim.names[slot],
-        "maxPlies": state.config.maxPlies,
-        "first": state.sim.first
+        "rounds": state.config.rounds
       })
 
 proc globalUpgradeHandler(request: Request) {.gcsafe.} =
@@ -419,10 +480,10 @@ proc websocketHandler(
           withLock stateLock:
             state.prompts[slot] = prompt
             state.scripted[slot] = scripted
-          echo "focus: slot ", slot, " delivered a prompt (",
+          echo "babel: slot ", slot, " delivered a prompt (",
             prompt.len, " chars", (if scripted: ", scripted" else: ""), ")"
       except CatchableError as error:
-        echo "focus: ignoring bad player frame: ", error.msg
+        echo "babel: ignoring bad player frame: ", error.msg
     of ErrorEvent:
       discard
     of CloseEvent:
@@ -449,9 +510,10 @@ proc buildRouter(replayMode: bool): Router =
 
 proc configFromReplay*(payload: JsonNode): GameConfig =
   result = defaultGameConfig()
-  result.maxPlies = payload["config"]{"maxPlies"}.getInt(120)
+  result.rounds = payload["config"]{"rounds"}.getInt(24)
   result.seed = payload["config"]{"seed"}.getInt(0)
-  ## The replay carries the episode's fitted cap; never re-fit it.
+  ## The replay carries the episode's fitted cap; never re-fit it. The
+  ## alphabet and views it carries are re-derived from the seed.
   result.sampled = true
   for name in payload["names"]:
     result.players.add(PlayerConfig(name: name.getStr()))
@@ -466,7 +528,7 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
     events.add(eventFromJson(node))
   var enriched = %*{
     "type": "replay",
-    "protocol": payload{"protocol"}.getStr("focus.replay.v1"),
+    "protocol": payload{"protocol"}.getStr("babel.replay.v1"),
     "names": payload["names"],
     "policyNames": payload{"policyNames"},
     "config": payload["config"],
@@ -478,12 +540,12 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
 
   let router = buildRouter(replayMode = true)
   gameServer = newServer(router, websocketHandler)
-  echo "focus: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
+  echo "babel: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
 
 proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   if config.tokens.len != config.players.len:
-    raise newException(FocusError, "tokens and players must align")
+    raise newException(BabelError, "tokens and players must align")
   state.config = config
   state.sim = initSim(config)
   state.prompts = newSeq[string](config.players.len)
@@ -493,5 +555,5 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   let router = buildRouter(replayMode = false)
   gameServer = newServer(router, websocketHandler)
   createThread(gameThread, runGame, runtimeConfig)
-  echo "focus: serving on ", runtimeConfig.host, ":", runtimeConfig.port
+  echo "babel: serving on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)

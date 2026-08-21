@@ -2,15 +2,15 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Focus — Replay</title>
+<title>Babel — Replay</title>
 <link rel="stylesheet" href="./chrome.css">
 </head>
 <body>
 <div id="layout">
   <div id="stage">
     <div id="topband">
-      <div id="wordmark">FO<span>CUS</span></div>
-      <div id="clock">PLY 0</div>
+      <div id="wordmark">BA<span>BEL</span></div>
+      <div id="clock">ROUND 0</div>
       <div id="topright">
         <span id="statuschip">replay</span>
         <button id="feedtoggle">LOG »</button>
@@ -35,7 +35,7 @@
 </div>
 <div id="loading">LOADING REPLAY…</div>
 <script src="./renderer.js"></script>
-<script src="./focus_replay.js"></script>
+<script src="./babel_replay.js"></script>
 <script src="./static_replay.js"></script>
 <script>
   var canvas = document.getElementById("table");
@@ -46,7 +46,7 @@
   window.addEventListener("resize", fit);
   window.addEventListener("load", fit);
   fit();
-  FocusRenderer.bindFeedToggle(document.getElementById("feedtoggle"), true);
+  BabelRenderer.bindFeedToggle(document.getElementById("feedtoggle"), true);
   // attach happens in static_replay.js once the wasm module loads
 </script>
 </body>

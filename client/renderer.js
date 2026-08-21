@@ -1,19 +1,25 @@
-// Focus shared renderer + drivers.
+// Babel shared renderer + drivers.
 //
-// One canvas scene (the 52-square Focus board, stacked discs, two cogs with
-// their reserve/captured tallies, speech bubbles) fed by three drivers:
-// live /global websocket, live /player websocket, and replay (from the
-// game's /replay websocket or the static wasm bundle). All state derivation
-// happens server-side / wasm-side; this file only draws state objects:
-//   {seats:[{name,reserve,captured,material,stacks,acting}, {…}],
-//    board:[[owners bottom→top] × 64], turn, ply, first, gameDone, winner,
-//    reason, lastMove:{kind,seat,from,to,count}|null}
+// One canvas scene (two booths — one per pair — each with a speaker cog and
+// its scene card, the glyph ribbon carrying the message, and a listener cog
+// with its four-card lineup; names, tallies and private-notes parchments
+// under every cog) fed by three drivers: live /global websocket, live
+// /player websocket, and replay (from the game's /replay websocket or the
+// static wasm bundle). All state derivation happens server-side /
+// wasm-side; this file only draws state objects:
+//   {seats:[{name,score,correct,asSpeaker,asListener,role,partner,notes} ×4],
+//    round, rounds, roundsPlayed, glyphs[16], perm[4][16],
+//    pairs:[{speaker,listener,target,lineup[4],tokens|null,pick|null,
+//            correct|null} ×2],
+//    phase:"speak0|pick0|speak1|pick1|between|done", gameDone, reason}
+// Spectators always see the CANONICAL alphabet (glyphs[t]); the per-seat
+// permutations are the agents' problem, not the audience's.
 (function () {
   "use strict";
 
-  // Ink & Print palette, matching the coworld-ctf broadcast chrome. Focus
-  // is a two-player game: seat 0 is red, seat 1 is blue. The extra colours
-  // stay so the chrome's seatN classes keep lining up with the CSS.
+  // Ink & Print palette, matching the coworld-ctf broadcast chrome. Babel
+  // seats four cogs: red, blue, green, yellow. The extra colours stay so
+  // the chrome's seatN classes keep lining up with the CSS.
   var COLORS = ["red", "blue", "green", "yellow", "violet", "orange"];
   var COLOR_HEX = {
     red: "#e0523a",
@@ -27,32 +33,35 @@
   var INK = "#2a1f16";
   var AMBER = "#e8a33d";
   var GHOST = "#8a7f72";
-  var SQUARE_A = "#3a4a3f";
-  var SQUARE_B = "#2d3b32";
-  var SQUARE_EDGE = "rgba(242, 232, 216, 0.14)";
-  var BUBBLE_MS = 5200;
-  // The last-move arrow / drop ring holds for a beat, then fades out.
-  var LAST_MOVE_HOLD_MS = 2500;
-  var LAST_MOVE_FADE_MS = 700;
+  var CARD_EDGE = "rgba(42, 31, 22, 0.85)";
+  var STRIP = "rgba(242, 232, 216, 0.06)";
+  // The pick verdict (green flash / red shake + amber truth) holds for a
+  // beat, then fades down to a resting tint so a paused frame still reads.
+  var PICK_HOLD_MS = 2500;
+  var PICK_FADE_MS = 700;
+  var PICK_REST = 0.35;
+  var SHAKE_MS = 600;
+  var RIBBON_SLIDE_MS = 420;
 
-  var FILES = "abcdefgh";
-  var DIRS = { N: "N", S: "S", E: "E", W: "W" };
+  // Symbols fall through to a system symbol font when rajdhani lacks them.
+  var GLYPH_FONT = "'rajdhani', 'Apple Symbols', 'Segoe UI Symbol', " +
+    "'Noto Sans Symbols 2', system-ui, sans-serif";
 
-  // The three squares in every corner are not part of the board.
-  function playable(cell) {
-    var f = cell & 7;
-    var r = cell >> 3;
-    var edgeF = f === 0 || f === 7;
-    var edgeR = r === 0 || r === 7;
-    if (edgeF && edgeR) return false;
-    if (edgeF && (r === 1 || r === 6)) return false;
-    if (edgeR && (f === 1 || f === 6)) return false;
-    return true;
+  var SHAPES = ["circle", "square", "triangle", "star"];
+  var COLOURS = ["red", "blue", "green", "yellow"];
+  var LETTERS = "ABCD";
+
+  // Scene id = shape*16 + colour*4 + count; count 0..3 means 1..4 items.
+  function sceneOf(id) {
+    if (typeof id !== "number" || id < 0 || id > 63) return null;
+    return { shape: id >> 4, colour: (id >> 2) & 3, count: (id & 3) + 1 };
   }
 
-  function cellName(cell) {
-    if (typeof cell !== "number" || cell < 0 || cell > 63) return "?";
-    return FILES[cell & 7] + ((cell >> 3) + 1);
+  function sceneText(id) {
+    var s = sceneOf(id);
+    if (!s) return "?";
+    return s.count + " " + COLOURS[s.colour] + " " + SHAPES[s.shape] +
+      (s.count === 1 ? "" : "s");
   }
 
   function assetUrl(base, name) {
@@ -80,6 +89,7 @@
   function makeRenderer(canvas, assetBase, onReady) {
     var ctx = canvas.getContext("2d");
     var names = ["soldier_red_front.png", "soldier_blue_front.png",
+      "soldier_green_front.png", "soldier_yellow_front.png",
       "arena_floor.png"];
     loadImages(assetBase, names, function (images) {
       onReady({
@@ -97,7 +107,7 @@
     return cut + "…";
   }
 
-  // Colour helpers for the disc rims / highlights.
+  // Colour helpers for the shape rims / highlights.
   function hexToRgb(hex) {
     var n = parseInt(hex.slice(1), 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -108,102 +118,100 @@
     });
     return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
   }
+  function rgba(hex, alpha) {
+    var c = hexToRgb(hex);
+    return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha + ")";
+  }
 
   // Nominal cog size; everything around a cog is measured as a multiple of
   // it so the whole seat block scales as one unit.
   var SEAT_BASE = 84;
-  var BUBBLE_MAX_W = 220, BUBBLE_LINES = 4, BUBBLE_LINE_H = 16;
-  var BUBBLE_PAD = 8, BUBBLE_TAIL = 8, BUBBLE_RISE = 0.69;
-  var LABEL_GUTTER = 22;
+  var NOTE_LINES = 3, NOTE_LINE_H = 12, NOTE_PAD = 6;
+  var LABEL_GUTTER = 16;
 
-  function bubbleHeight(lines) {
-    return lines * BUBBLE_LINE_H + BUBBLE_PAD * 2 - 4;
+  function noteHeight(scale) {
+    return (NOTE_LINES * NOTE_LINE_H + NOTE_PAD * 2 - 2) * scale;
   }
 
   function seatBlock(size) {
-    // The seat block: cog, name, RESERVE / TAKEN / MATERIAL rows below it,
-    // and speech-bubble headroom above. Bubble headroom is reserved at its
-    // WORST case (four lines) even while nobody is talking: bubbles are
-    // transient and arrive without warning.
+    // The seat block: role tag headroom above the cog, the cog, then name,
+    // score and the notes parchment below it. Parchment room is reserved
+    // even while a seat has no notes: notes arrive without warning.
     var scale = size / SEAT_BASE;
     return {
       w: size * 1.9,
-      above: size * BUBBLE_RISE + bubbleHeight(BUBBLE_LINES) * scale,
+      above: size * 0.18,
       cogHalf: size / 2,
-      below: size * 0.62 + 72 * scale
+      below: size * 0.62 + 34 * scale + noteHeight(scale)
     };
   }
 
   function computeLayout(width, height) {
-    // The board is a square grid centred in whatever is left after the two
-    // seat blocks: beside it when the canvas is wide, above/below it when
-    // it is narrow. Callers embed this viewer at wildly different sizes,
+    // Two booths stacked vertically. In each, left to right: speaker block,
+    // target card, ribbon, lineup of four cards, listener block. The ribbon
+    // soaks up whatever width is left; the seat size shrinks until the
+    // fixed parts fit. Callers embed this viewer at wildly different sizes,
     // so the fit is solved per frame rather than assumed.
     var margin = 10;
-    var size = Math.min(SEAT_BASE, width / 4, height / 4);
+    var boothGap = 8;
+    var boothH = (height - 2 * margin - boothGap) / 2;
+    var size = Math.min(SEAT_BASE, width / 9, height / 5);
     var layout = null;
     for (var attempt = 0; attempt < 40; attempt++) {
       var b = seatBlock(size);
       var scale = size / SEAT_BASE;
-      var gutter = LABEL_GUTTER * Math.max(scale, 0.6);
-      // Horizontal: seats left and right of the board.
-      var hAvailW = width - 2 * margin - 2 * b.w - gutter;
-      var hAvailH = height - 2 * margin - gutter;
-      var sqH = Math.min(hAvailW, hAvailH);
-      // Vertical: seat 1 above the board, seat 0 below.
-      var vAvailW = width - 2 * margin - gutter;
-      var vAvailH = height - 2 * margin - gutter -
-        (b.above + b.below) - (b.cogHalf + b.below);
-      var sqV = Math.min(vAvailW, vAvailH);
-      var horizontal = sqH >= sqV;
-      // Never negative: a not-yet-laid-out canvas still gets a valid frame.
-      var sq = Math.max(horizontal ? sqH : sqV, 8);
-      if (horizontal) {
-        var bx = margin + b.w + gutter + Math.max(hAvailW - sq, 0) / 2;
-        var by = margin + Math.max(hAvailH - sq, 0) / 2;
-        var seatY = Math.min(Math.max(by + sq / 2 - 24 * scale,
-          margin + b.above), height - margin - b.below);
-        layout = {
-          size: size, scale: scale, sq: sq, cs: sq / 8, bx: bx, by: by,
-          gutter: gutter,
-          seats: [
-            { x: margin + b.w / 2, y: seatY },
-            { x: width - margin - b.w / 2, y: seatY }
-          ]
-        };
-      } else {
-        var vbx = margin + gutter + Math.max(vAvailW - sq, 0) / 2;
-        var topY = margin + b.above;
-        var vby = topY + b.below + Math.max(vAvailH - sq, 0) / 2;
-        layout = {
-          size: size, scale: scale, sq: sq, cs: sq / 8, bx: vbx, by: vby,
-          gutter: gutter,
-          seats: [
-            { x: width / 2, y: vby + sq + gutter + b.cogHalf },
-            { x: width / 2, y: topY }
-          ]
-        };
+      var gap = 12 * scale;
+      var cardH = size * 1.45;
+      var cardW = cardH * 0.78;
+      var lcardH = cardH * 0.82;
+      var lcardW = lcardH * 0.78;
+      var lgap = 6 * scale;
+      var gutter = LABEL_GUTTER * scale;
+      var ribbonMin = size * 2.0;
+      var fixedW = 2 * margin + 2 * b.w + cardW + 4 * lcardW + 3 * lgap +
+        ribbonMin + 4 * gap;
+      var blockH = b.above + 2 * b.cogHalf + b.below;
+      var fits = fixedW <= width && blockH <= boothH &&
+        cardH + gutter <= boothH;
+      var ribbonW = Math.max(width - fixedW + ribbonMin, ribbonMin);
+      var booths = [];
+      for (var k = 0; k < 2; k++) {
+        var top = margin + k * (boothH + boothGap);
+        var cy = top + boothH / 2;
+        var cogY = cy - blockH / 2 + b.above + b.cogHalf;
+        var x = margin;
+        var speaker = { x: x + b.w / 2, y: cogY };
+        x += b.w + gap;
+        var target = { x: x, y: cy - cardH / 2, w: cardW, h: cardH };
+        x += cardW + gap;
+        var ribbon = { x: x, y: cy - size * 0.45, w: ribbonW, h: size * 0.9 };
+        x += ribbonW + gap;
+        var lineup = [];
+        for (var c = 0; c < 4; c++) {
+          lineup.push({ x: x + c * (lcardW + lgap),
+            y: cy - lcardH / 2 + gutter / 2, w: lcardW, h: lcardH });
+        }
+        x += 4 * lcardW + 3 * lgap + gap;
+        var listener = { x: x + b.w / 2, y: cogY };
+        booths.push({ top: top, h: boothH, speaker: speaker, target: target,
+          ribbon: ribbon, lineup: lineup, listener: listener, gutter: gutter });
       }
-      if (sq >= Math.min(width, height) * 0.55 || size < 28) break;
+      layout = { size: size, scale: scale, booths: booths, width: width,
+        height: height };
+      if (fits || size < 24) break;
       size *= 0.92;
     }
     return layout;
   }
 
-  function cellRect(layout, cell) {
-    var f = cell & 7;
-    var r = cell >> 3;
-    return {
-      x: layout.bx + f * layout.cs,
-      y: layout.by + (7 - r) * layout.cs,
-      w: layout.cs,
-      h: layout.cs
-    };
-  }
-
-  function cellCenter(layout, cell) {
-    var rect = cellRect(layout, cell);
-    return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+  // Which seats sit in which booth: the state's pairs when it has them
+  // (live global / replay), else the resting arrangement so a redacted
+  // player frame still shows four cogs at two empty tables.
+  function boothPairs(view) {
+    var pairs = view.pairs || [];
+    if (pairs.length >= 2) return pairs;
+    var rest = [{ speaker: 0, listener: 1 }, { speaker: 2, listener: 3 }];
+    return rest.map(function (p, i) { return pairs[i] || p; });
   }
 
   function draw(ctx, canvas, images, view) {
@@ -212,8 +220,10 @@
     var seats = view.seats || [];
     var now = view.now || Date.now();
     var layout = computeLayout(w, h);
-    var cs = layout.cs;
     var scale = layout.scale;
+    var size = layout.size;
+    var fx = view.effects || { speakAt: [], pickAt: [] };
+    var glyphs = view.glyphs || [];
 
     // Floor.
     var floor = images["arena_floor.png"];
@@ -226,335 +236,210 @@
     ctx.fillStyle = "rgba(18, 13, 9, 0.45)";
     ctx.fillRect(0, 0, w, h);
 
-    // The board: 52 playable squares; the corners stay transparent so the
-    // octagon-ish outline reads.
-    var board = view.board || [];
-    var acting = view.turn;
-    ctx.save();
-    for (var cell = 0; cell < 64; cell++) {
-      if (!playable(cell)) continue;
-      var rect = cellRect(layout, cell);
-      var f = cell & 7;
-      var r = cell >> 3;
-      ctx.fillStyle = ((f + r) & 1) ? SQUARE_A : SQUARE_B;
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      ctx.strokeStyle = SQUARE_EDGE;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-      if (view.showControl && acting >= 0) {
-        var stack = board[cell] || [];
-        if (stack.length && stack[stack.length - 1] === acting) {
-          ctx.strokeStyle = AMBER;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(rect.x + 2, rect.y + 2, rect.w - 4, rect.h - 4);
-        }
-      }
-    }
-    ctx.restore();
-
-    // File letters under the bottom row, rank numbers left of the board.
-    ctx.save();
-    ctx.fillStyle = GHOST;
-    ctx.font = "600 " + Math.round(Math.max(9, cs * 0.22)) +
-      "px 'rajdhani', system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    for (var file = 0; file < 8; file++) {
-      ctx.fillText(FILES[file], layout.bx + file * cs + cs / 2,
-        layout.by + layout.sq + 3 * scale);
-    }
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for (var rank = 0; rank < 8; rank++) {
-      ctx.fillText("" + (rank + 1), layout.bx - 4 * scale,
-        layout.by + (7 - rank) * cs + cs / 2);
-    }
-    ctx.restore();
-
-    // Stacks: discs bottom first, coloured by owner; the top disc gets the
-    // highlight and a height numeral when there is more than one piece.
-    for (var sc = 0; sc < 64; sc++) {
-      var pieces = board[sc];
-      if (!pieces || !pieces.length) continue;
-      drawStack(ctx, layout, sc, pieces);
-    }
-
-    // Last move: an arrow for a slide, a dashed ring for a drop.
-    var lastMove = view.lastMove;
-    if (lastMove && typeof view.lastMoveAt === "number") {
-      var age = now - view.lastMoveAt;
-      var alpha = age < LAST_MOVE_HOLD_MS ? 1 :
-        Math.max(0, 1 - (age - LAST_MOVE_HOLD_MS) / LAST_MOVE_FADE_MS);
-      if (alpha > 0) drawLastMove(ctx, layout, lastMove, alpha * 0.9);
-    }
-
-    // Seats: cog, halo, name and tallies.
-    seats.forEach(function (seat, index) {
-      if (index >= layout.seats.length) return;
-      var pos = layout.seats[index];
-      var color = seatColor(index);
-      var sprite = images["soldier_" + color + "_front.png"];
-      var size = layout.size;
-      var loser = view.done && view.winner >= 0 && view.winner !== index;
-
-      ctx.save();
-      ctx.translate(pos.x, pos.y);
-      if (loser) ctx.globalAlpha = 0.4;
-      if (sprite && sprite.width) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-      } else {
-        ctx.fillStyle = COLOR_HEX[color];
-        ctx.fillRect(-size / 3, -size / 3, size / 1.5, size / 1.5);
-      }
-      ctx.restore();
-
-      // Acting halo.
-      if (seat.acting && !view.done) {
-        ctx.save();
-        ctx.strokeStyle = AMBER;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 5]);
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, size * 0.62, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Verdict tag over the cog once the game is decided.
-      if (view.done) {
-        var tag = view.winner < 0 ? "DRAW" :
-          view.winner === index ? "WINNER" : null;
-        if (tag) {
-          drawTag(ctx, pos.x, pos.y - size * 0.42, tag, COLOR_HEX[color],
-            scale);
-        }
-      }
-
-      // Name.
-      ctx.save();
-      ctx.font = "600 " + Math.round(13 * scale) +
-        "px 'rajdhani', system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = loser ? GHOST : PAPER;
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 4;
-      ctx.fillText(ellipsize(ctx, seat.name, size * 1.6), pos.x,
-        pos.y + size * 0.62 + 14 * scale);
-      ctx.restore();
-
-      // Tallies: RESERVE (own-colour discs), TAKEN (ghost discs), MATERIAL.
-      var bw = size * 1.9;
-      var left = pos.x - bw / 2 + 4 * scale;
-      var right = pos.x + bw / 2 - 4 * scale;
-      var rowY = pos.y + size * 0.62 + 30 * scale;
-      drawTally(ctx, left, right, rowY, "RESERVE", seat.reserve || 0,
-        COLOR_HEX[color], scale);
-      drawTally(ctx, left, right, rowY + 16 * scale, "TAKEN",
-        seat.captured || 0, GHOST, scale);
-      ctx.save();
-      ctx.font = "700 " + Math.round(10 * scale) +
-        "px 'rajdhani', system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = GHOST;
-      ctx.fillText("MATERIAL", left, rowY + 33 * scale);
-      ctx.font = "700 " + Math.round(14 * scale) +
-        "px 'rajdhani', system-ui, sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillStyle = AMBER;
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 3;
-      ctx.fillText("" + (seat.material || 0), right, rowY + 33 * scale);
-      ctx.restore();
+    // Leaders get a tag once the table is settled.
+    var top = -1;
+    var level = true;
+    seats.forEach(function (seat) {
+      if (seat.correct > top) top = seat.correct;
+    });
+    seats.forEach(function (seat) {
+      if (seat.correct !== top) level = false;
     });
 
-    // Speech bubbles (drawn last, on top).
-    (view.bubbles || []).forEach(function (bubble) {
-      var age = now - bubble.at;
-      if (age > BUBBLE_MS) return;
-      var pos = layout.seats[bubble.seat];
-      if (!pos) return;
-      var alpha = age > BUBBLE_MS - 600 ? (BUBBLE_MS - age) / 600 : 1;
-      drawBubble(ctx, w, pos.x, pos.y - layout.size * BUBBLE_RISE,
-        bubble.text, alpha, layout.scale);
+    var pairs = boothPairs(view);
+    pairs.forEach(function (pair, pi) {
+      var booth = layout.booths[pi];
+      if (!booth) return;
+      var speakerSeat = seats[pair.speaker];
+      var listenerSeat = seats[pair.listener];
+      var speakerColor = seatColor(pair.speaker);
+      var listenerColor = seatColor(pair.listener);
+      var pending = pendingSeat(view.phase, pairs);
+
+      // Booth strip: a faint plate so the two tables read as rooms.
+      ctx.save();
+      ctx.fillStyle = STRIP;
+      roundRect(ctx, 4, booth.top, w - 8, booth.h, 10 * scale);
+      ctx.fill();
+      ctx.restore();
+
+      // Speaker: cog, scene card.
+      drawSeat(ctx, images, speakerSeat, pair.speaker, booth.speaker, size,
+        scale, {
+          role: pair.target !== undefined && pair.target !== null ?
+            "SPEAKS" : "",
+          pending: pending === pair.speaker && !view.done,
+          leads: view.done && !level && speakerSeat &&
+            speakerSeat.correct === top,
+          roundsPlayed: view.roundsPlayed
+        });
+      drawCard(ctx, booth.target, pair.target, scale, {
+        accent: COLOR_HEX[speakerColor]
+      });
+
+      // Ribbon: the message in canonical glyphs, speaker-coloured.
+      var speakAt = fx.speakAt[pi];
+      var slide = typeof speakAt === "number" ?
+        Math.min(1, (now - speakAt) / RIBBON_SLIDE_MS) : 1;
+      drawRibbon(ctx, booth.ribbon, pair.tokens, glyphs,
+        COLOR_HEX[speakerColor], slide, scale);
+
+      // Lineup A–D with the pick verdict on top.
+      var pickAt = fx.pickAt[pi];
+      var pickAge = typeof pickAt === "number" ? now - pickAt : null;
+      var verdictAlpha = pickAge === null ? PICK_REST :
+        pickAge < PICK_HOLD_MS ? 1 :
+        Math.max(PICK_REST, 1 - (pickAge - PICK_HOLD_MS) / PICK_FADE_MS *
+          (1 - PICK_REST));
+      var lineup = pair.lineup || [];
+      for (var c = 0; c < 4; c++) {
+        var rect = booth.lineup[c];
+        var picked = typeof pair.pick === "number" && pair.pick === c;
+        var isTruth = lineup[c] !== undefined && lineup[c] === pair.target;
+        var shake = 0;
+        if (picked && pair.correct === false && pickAge !== null &&
+            pickAge < SHAKE_MS) {
+          shake = Math.sin(pickAge / 22) * 4 * scale * (1 - pickAge / SHAKE_MS);
+        }
+        var shifted = { x: rect.x + shake, y: rect.y, w: rect.w, h: rect.h };
+        drawCard(ctx, shifted, lineup[c], scale, {
+          label: LETTERS[c],
+          labelColor: picked ? COLOR_HEX[listenerColor] : GHOST,
+          verdict: picked ? (pair.correct ? "correct" : "wrong") :
+            (isTruth && pair.correct === false ? "truth" : ""),
+          verdictAlpha: verdictAlpha
+        });
+      }
+
+      // Listener.
+      drawSeat(ctx, images, listenerSeat, pair.listener, booth.listener, size,
+        scale, {
+          role: pair.target !== undefined && pair.target !== null ?
+            "LISTENS" : "",
+          pending: pending === pair.listener && !view.done,
+          leads: view.done && !level && listenerSeat &&
+            listenerSeat.correct === top,
+          roundsPlayed: view.roundsPlayed
+        });
     });
   }
 
-  function drawTally(ctx, left, right, y, label, count, color, scale) {
+  // The seat whose decision the table is waiting on.
+  function pendingSeat(phase, pairs) {
+    var m = /^(speak|pick)([01])$/.exec(phase || "");
+    if (!m) return -1;
+    var pair = pairs[Number(m[2])];
+    if (!pair) return -1;
+    return m[1] === "speak" ? pair.speaker : pair.listener;
+  }
+
+  // Cog, role tag, name, score and the notes parchment.
+  function drawSeat(ctx, images, seat, index, pos, size, scale, opts) {
+    if (!seat) return;
+    var color = seatColor(index);
+    var sprite = images["soldier_" + color + "_front.png"];
+
     ctx.save();
-    ctx.font = "700 " + Math.round(10 * scale) +
+    ctx.translate(pos.x, pos.y);
+    if (sprite && sprite.width) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = COLOR_HEX[color];
+      ctx.fillRect(-size / 3, -size / 3, size / 1.5, size / 1.5);
+    }
+    ctx.restore();
+
+    // Acting halo.
+    if (opts.pending) {
+      ctx.save();
+      ctx.strokeStyle = AMBER;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, size * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Role tag over the cog while a round is on; LEADS once it is over.
+    var tag = opts.leads ? "LEADS" : opts.role;
+    if (tag) {
+      drawTag(ctx, pos.x, pos.y - size * 0.52, tag,
+        opts.leads ? AMBER : COLOR_HEX[color], scale);
+    }
+
+    // Name.
+    ctx.save();
+    ctx.font = "600 " + Math.round(13 * scale) +
       "px 'rajdhani', system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = GHOST;
-    ctx.fillText(label, left, y);
-    var labelW = ctx.measureText("RESERVE").width;
-    // Numeral pinned to the right edge; discs fill the room between.
-    ctx.font = "700 " + Math.round(12 * scale) +
-      "px 'rajdhani', system-ui, sans-serif";
-    ctx.textAlign = "right";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
     ctx.fillStyle = PAPER;
     ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 3;
-    ctx.fillText("" + count, right, y);
-    ctx.shadowBlur = 0;
-    var numW = ctx.measureText("00").width;
-    var start = left + labelW + 8 * scale;
-    var end = right - numW - 6 * scale;
-    var shown = Math.min(count, 12);
-    if (shown > 0 && end > start) {
-      var radius = 3 * scale;
-      var spacing = Math.min(8 * scale, (end - start) / 12);
-      for (var i = 0; i < shown; i++) {
-        ctx.beginPath();
-        ctx.arc(start + radius + i * spacing, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.5)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
+    ctx.shadowBlur = 4;
+    ctx.fillText(ellipsize(ctx, seat.name || "", size * 1.7), pos.x,
+      pos.y + size * 0.62 + 12 * scale);
 
-  function drawStack(ctx, layout, cell, pieces) {
-    var cs = layout.cs;
-    var rect = cellRect(layout, cell);
-    var rx = cs * 0.34;
-    var ry = rx * 0.55;
-    var lift = cs * 0.16;
-    var cx = rect.x + cs / 2;
-    // The bottom disc sits a touch below centre so a tall stack reads
-    // centred in its square.
-    var baseY = rect.y + cs / 2 + cs * 0.14;
-    ctx.save();
-    for (var i = 0; i < pieces.length; i++) {
-      var owner = pieces[i];
-      var color = COLOR_HEX[seatColor(owner)] || GHOST;
-      var y = baseY - i * lift;
-      // Side wall of the disc, then its face.
-      ctx.beginPath();
-      ctx.ellipse(cx, y + lift * 0.55, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = shade(color, 0.55);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(cx, y, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.strokeStyle = shade(color, 0.45);
-      ctx.lineWidth = Math.max(1, cs * 0.025);
-      ctx.stroke();
-      if (i === pieces.length - 1) {
-        // Highlight on the top disc.
-        ctx.beginPath();
-        ctx.ellipse(cx - rx * 0.25, y - ry * 0.3, rx * 0.5, ry * 0.4, 0, 0,
-          Math.PI * 2);
-        ctx.fillStyle = "rgba(242, 232, 216, 0.35)";
-        ctx.fill();
-      }
-    }
-    if (pieces.length >= 2) {
-      ctx.font = "700 " + Math.round(cs * 0.28) +
-        "px 'rajdhani', system-ui, sans-serif";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "top";
-      ctx.fillStyle = PAPER;
-      ctx.shadowColor = INK;
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
-      ctx.fillText("" + pieces.length, rect.x + cs - 3, rect.y + 2);
-    }
-    ctx.restore();
-  }
-
-  function drawLastMove(ctx, layout, move, alpha) {
-    var cs = layout.cs;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = AMBER;
-    ctx.fillStyle = AMBER;
-    if (move.kind === "move" && move.from >= 0 && move.to >= 0) {
-      var a = cellCenter(layout, move.from);
-      var b = cellCenter(layout, move.to);
-      var dx = b.x - a.x;
-      var dy = b.y - a.y;
-      var len = Math.sqrt(dx * dx + dy * dy) || 1;
-      var ux = dx / len;
-      var uy = dy / len;
-      var startX = a.x + ux * cs * 0.25;
-      var startY = a.y + uy * cs * 0.25;
-      var head = cs * 0.32;
-      var endX = b.x - ux * cs * 0.3;
-      var endY = b.y - uy * cs * 0.3;
-      var shaftX = endX - ux * head * 0.8;
-      var shaftY = endY - uy * head * 0.8;
-      ctx.lineWidth = Math.max(3, cs * 0.12);
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(shaftX, shaftY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX - ux * head - uy * head * 0.55,
-        endY - uy * head + ux * head * 0.55);
-      ctx.lineTo(endX - ux * head + uy * head * 0.55,
-        endY - uy * head - ux * head * 0.55);
-      ctx.closePath();
-      ctx.fill();
-    } else if (move.to >= 0) {
-      var c = cellCenter(layout, move.to);
-      var rect = cellRect(layout, move.to);
-      ctx.lineWidth = Math.max(2, cs * 0.06);
-      ctx.setLineDash([cs * 0.12, cs * 0.09]);
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, cs * 0.42, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.font = "700 " + Math.round(cs * 0.26) +
-        "px 'rajdhani', system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.shadowColor = INK;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
-      ctx.fillText("+1", rect.x + 3, rect.y + 2);
-    }
-    ctx.restore();
-  }
-
-  // A small tag ("WINNER") in the seat's colour, pinned over the cog.
-  function drawTag(ctx, x, y, text, accent, scale) {
-    ctx.save();
-    ctx.font = "700 " + Math.round(11 * scale) +
+    // Score: correct / roundsPlayed in amber.
+    var played = typeof opts.roundsPlayed === "number" ? opts.roundsPlayed :
+      (seat.roundsPlayed || 0);
+    ctx.font = "700 " + Math.round(13 * scale) +
       "px 'rajdhani', system-ui, sans-serif";
-    var label = text.toUpperCase();
-    var pad = 6 * scale;
-    var bw = ctx.measureText(label).width + pad * 2;
-    var bh = 17 * scale;
-    ctx.fillStyle = "rgba(242, 232, 216, 0.95)";
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 2;
-    roundRect(ctx, x - bw / 2, y - bh / 2, bw, bh, 4 * scale);
+    ctx.fillStyle = AMBER;
+    ctx.fillText((seat.correct || 0) + " / " + played, pos.x,
+      pos.y + size * 0.62 + 27 * scale);
+    ctx.restore();
+
+    // Notes parchment.
+    var bw = size * 1.9;
+    drawParchment(ctx, pos.x - bw / 2, pos.y + size * 0.62 + 34 * scale, bw,
+      seat.notes || "", scale);
+  }
+
+  function drawParchment(ctx, x, y, w, text, scale) {
+    var pad = NOTE_PAD * scale;
+    var lineH = NOTE_LINE_H * scale;
+    var h = noteHeight(scale);
+    ctx.save();
+    ctx.font = Math.round(10.5 * scale) + "px " + GLYPH_FONT;
+    var lines = text ? wrapLines(ctx, text, w - pad * 2, NOTE_LINES) : [];
+    ctx.fillStyle = text ? "rgba(242, 232, 216, 0.92)" :
+      "rgba(242, 232, 216, 0.10)";
+    ctx.strokeStyle = text ? CARD_EDGE : "rgba(242, 232, 216, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash(text ? [] : [3, 3]);
+    roundRect(ctx, x, y, w, h, 3 * scale);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = INK;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, x, y + scale);
+    ctx.setLineDash([]);
+    // Folded corner.
+    if (text) {
+      ctx.beginPath();
+      ctx.moveTo(x + w - 7 * scale, y);
+      ctx.lineTo(x + w, y + 7 * scale);
+      ctx.lineTo(x + w - 7 * scale, y + 7 * scale);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(42, 31, 22, 0.25)";
+      ctx.fill();
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    if (text) {
+      ctx.fillStyle = INK;
+      lines.forEach(function (line, i) {
+        ctx.fillText(line, x + pad, y + pad + i * lineH);
+      });
+    } else {
+      ctx.fillStyle = GHOST;
+      ctx.font = "600 " + Math.round(8 * scale) +
+        "px 'rajdhani', system-ui, sans-serif";
+      ctx.fillText("NO NOTES YET", x + pad, y + pad);
+    }
     ctx.restore();
   }
 
-  function drawBubble(ctx, canvasWidth, x, y, text, alpha, scale) {
-    var s = scale || 1;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = Math.round(13 * s) + "px 'rajdhani', system-ui, sans-serif";
-    var maxWidth = BUBBLE_MAX_W * s;
+  function wrapLines(ctx, text, maxWidth, maxLines) {
     var words = text.split(/\s+/);
     var lines = [];
     var line = "";
@@ -568,39 +453,217 @@
       }
     });
     if (line) lines.push(line);
-    var overflow = lines.length > BUBBLE_LINES;
-    lines = lines.slice(0, BUBBLE_LINES);
+    var overflow = lines.length > maxLines;
+    lines = lines.slice(0, maxLines);
     if (overflow && lines.length) {
-      lines[lines.length - 1] += "…";
+      lines[lines.length - 1] = ellipsize(ctx, lines[lines.length - 1] + "…",
+        maxWidth);
     }
-    var widest = 0;
-    lines.forEach(function (l) {
-      widest = Math.max(widest, ctx.measureText(l).width);
-    });
-    var pad = BUBBLE_PAD * s;
-    var lineH = BUBBLE_LINE_H * s;
-    var bw = widest + pad * 2;
-    var bh = lines.length * lineH + pad * 2 - 4 * s;
-    var bx = Math.max(6, Math.min(x - bw / 2, canvasWidth - bw - 6));
-    var by = y - bh;
+    return lines.map(function (l) { return ellipsize(ctx, l, maxWidth); });
+  }
 
-    ctx.fillStyle = "rgba(242, 232, 216, 0.96)";
-    ctx.strokeStyle = "rgba(42, 31, 22, 0.9)";
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, bx, by, bw, bh, 8 * s);
+  // A scene card: `count` copies of `shape` filled in `colour` on paper.
+  // No scene (idle table / redacted frame) draws an empty dashed card.
+  // opts: {label, labelColor, accent, verdict:"correct|wrong|truth|",
+  //        verdictAlpha}
+  function drawCard(ctx, rect, sceneId, scale, opts) {
+    var scene = sceneOf(sceneId);
+    var r = 5 * scale;
+    ctx.save();
+    if (opts.label) {
+      ctx.font = "700 " + Math.round(12 * scale) +
+        "px 'rajdhani', system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = opts.labelColor || "#b8ac98";
+      ctx.fillText(opts.label, rect.x + rect.w / 2, rect.y - 4 * scale);
+    }
+    if (!scene) {
+      ctx.fillStyle = "rgba(242, 232, 216, 0.08)";
+      ctx.strokeStyle = "rgba(242, 232, 216, 0.22)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, r);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    // Paper with a soft drop shadow.
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 6 * scale;
+    ctx.shadowOffsetY = 2 * scale;
+    ctx.fillStyle = PAPER;
+    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, r);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = opts.accent || CARD_EDGE;
+    ctx.lineWidth = opts.accent ? 2 : 1;
+    ctx.stroke();
+
+    // Items: 1 centred, 2 side by side, 3 in a triangle, 4 in a grid.
+    var spots = [
+      [[0.5, 0.5]],
+      [[0.3, 0.5], [0.7, 0.5]],
+      [[0.5, 0.3], [0.3, 0.7], [0.7, 0.7]],
+      [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]]
+    ][scene.count - 1];
+    var radius = rect.w * (scene.count === 1 ? 0.3 : 0.17);
+    var color = COLOR_HEX[COLOURS[scene.colour]];
+    spots.forEach(function (spot) {
+      drawShape(ctx, scene.shape, rect.x + spot[0] * rect.w,
+        rect.y + spot[1] * rect.h, radius, color);
+    });
+
+    // Verdict overlay.
+    var a = opts.verdictAlpha === undefined ? 1 : opts.verdictAlpha;
+    if (opts.verdict === "correct" || opts.verdict === "wrong") {
+      var tint = opts.verdict === "correct" ? COLOR_HEX.green : COLOR_HEX.red;
+      ctx.fillStyle = rgba(tint, 0.55 * a);
+      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, r);
+      ctx.fill();
+      ctx.strokeStyle = rgba(tint, a);
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.font = "700 " + Math.round(rect.h * 0.55) + "px " + GLYPH_FONT;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.globalAlpha = a;
+      ctx.fillStyle = PAPER;
+      ctx.shadowColor = INK;
+      ctx.shadowBlur = 4;
+      ctx.fillText(opts.verdict === "correct" ? "✔" : "✘",
+        rect.x + rect.w / 2, rect.y + rect.h / 2 + rect.h * 0.03);
+      ctx.globalAlpha = 1;
+    } else if (opts.verdict === "truth") {
+      ctx.strokeStyle = rgba(AMBER, a);
+      ctx.lineWidth = 3;
+      roundRect(ctx, rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4,
+        r + 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawShape(ctx, shape, cx, cy, radius, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = shade(color, 0.55);
+    ctx.lineWidth = Math.max(1, radius * 0.12);
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    if (shape === 0) {
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    } else if (shape === 1) {
+      var s = radius * 0.9;
+      roundRect(ctx, cx - s, cy - s, 2 * s, 2 * s, radius * 0.15);
+    } else if (shape === 2) {
+      var tr = radius * 1.1;
+      for (var i = 0; i < 3; i++) {
+        var ang = -Math.PI / 2 + i * Math.PI * 2 / 3;
+        var px = cx + Math.cos(ang) * tr;
+        var py = cy + radius * 0.12 + Math.sin(ang) * tr;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    } else {
+      var outer = radius * 1.12;
+      var inner = outer * 0.45;
+      for (var k = 0; k < 10; k++) {
+        var rr = k % 2 === 0 ? outer : inner;
+        var a = -Math.PI / 2 + k * Math.PI / 5;
+        var sx = cx + Math.cos(a) * rr;
+        var sy = cy + radius * 0.06 + Math.sin(a) * rr;
+        if (k === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath();
+    }
     ctx.fill();
     ctx.stroke();
+    // Highlight.
     ctx.beginPath();
-    ctx.moveTo(x - 6 * s, by + bh);
-    ctx.lineTo(x + 6 * s, by + bh);
-    ctx.lineTo(x, by + bh + BUBBLE_TAIL * s);
+    ctx.arc(cx - radius * 0.3, cy - radius * 0.3, radius * 0.22, 0,
+      Math.PI * 2);
+    ctx.fillStyle = "rgba(242, 232, 216, 0.35)";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // The message between the cogs, large canonical glyphs in the speaker's
+  // colour, sliding in from the speaker's side when it lands.
+  function drawRibbon(ctx, rect, tokens, glyphs, color, slide, scale) {
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 13, 9, 0.55)";
+    ctx.strokeStyle = "rgba(242, 232, 216, 0.14)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, rect.h / 2);
+    ctx.fill();
+    ctx.stroke();
+    // Direction: a faint shaft with a head at the listener's end.
+    var midY = rect.y + rect.h / 2;
+    ctx.strokeStyle = "rgba(242, 232, 216, 0.18)";
+    ctx.fillStyle = "rgba(242, 232, 216, 0.18)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(rect.x + rect.h * 0.5, rect.y + rect.h - 5 * scale);
+    ctx.lineTo(rect.x + rect.w - rect.h * 0.55, rect.y + rect.h - 5 * scale);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rect.x + rect.w - rect.h * 0.4, rect.y + rect.h - 5 * scale);
+    ctx.lineTo(rect.x + rect.w - rect.h * 0.6, rect.y + rect.h - 9 * scale);
+    ctx.lineTo(rect.x + rect.w - rect.h * 0.6, rect.y + rect.h - 1 * scale);
     ctx.closePath();
     ctx.fill();
-
-    ctx.fillStyle = INK;
-    lines.forEach(function (l, i) {
-      ctx.fillText(l, bx + pad, by + pad + 11 * s + i * lineH);
+    if (!tokens || !tokens.length) {
+      ctx.fillStyle = GHOST;
+      ctx.font = "600 " + Math.round(9 * scale) +
+        "px 'rajdhani', system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("· · ·", rect.x + rect.w / 2, midY);
+      ctx.restore();
+      return;
+    }
+    var n = tokens.length;
+    var fontPx = Math.min(rect.h * 0.72, (rect.w - rect.h) / n * 0.85);
+    ctx.font = "700 " + Math.round(fontPx) + "px " + GLYPH_FONT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var step = Math.min(fontPx * 1.25, (rect.w - rect.h) / n);
+    var startX = rect.x + rect.w / 2 - (n - 1) * step / 2;
+    var eased = 1 - Math.pow(1 - slide, 3);
+    var offset = (1 - eased) * rect.w * 0.25;
+    ctx.globalAlpha = Math.max(0.05, eased);
+    ctx.fillStyle = color;
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 4;
+    tokens.forEach(function (t, i) {
+      var glyph = glyphs[t] !== undefined ? glyphs[t] : "?";
+      ctx.fillText(glyph, startX + i * step - offset, midY - fontPx * 0.04);
     });
+    ctx.restore();
+  }
+
+  // A small tag ("SPEAKS", "LEADS") in the seat's colour, pinned over the
+  // cog.
+  function drawTag(ctx, x, y, text, accent, scale) {
+    ctx.save();
+    ctx.font = "700 " + Math.round(10 * scale) +
+      "px 'rajdhani', system-ui, sans-serif";
+    var label = text.toUpperCase();
+    var pad = 5 * scale;
+    var bw = ctx.measureText(label).width + pad * 2;
+    var bh = 15 * scale;
+    ctx.fillStyle = "rgba(242, 232, 216, 0.95)";
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    roundRect(ctx, x - bw / 2, y - bh / 2, bw, bh, 4 * scale);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x, y + scale);
     ctx.restore();
   }
 
@@ -616,16 +679,19 @@
 
   // ---- Names ---------------------------------------------------------------
 
-  // The agents only ever hear anonymous board names ("Tinker", "Gasket");
+  // The agents only ever hear anonymous table names ("Sprocket", "Gizmo");
   // the payload carries the policy names separately, spectator-side only.
   // A name map swaps them in wherever a name is RENDERED while the
   // underlying events keep the aliases. Baseline fillers keep their alias.
+  // The map also carries the canonical alphabet so feed lines can spell
+  // messages the way the stage does.
   function isBaselineFiller(name) {
     return /^baseline(\s*\(\d+\))?$/i.test(name);
   }
 
-  function makeNameMap(tableNames, policyNames) {
+  function makeNameMap(tableNames, policyNames, glyphs) {
     var table = tableNames || [];
+    var alphabet = glyphs || [];
     var display = table.map(function (name, i) {
       var policy = policyNames && policyNames[i];
       return (policy && !isBaselineFiller(policy)) ? policy : name;
@@ -646,6 +712,9 @@
         return text.replace(pattern, function (match) {
           return byAlias[match];
         });
+      },
+      glyph: function (t) {
+        return alphabet[t] !== undefined ? alphabet[t] : "?";
       }
     };
   }
@@ -658,13 +727,6 @@
     });
   }
 
-  function renameBubbles(bubbles, nameMap) {
-    return (bubbles || []).map(function (bubble) {
-      return { seat: bubble.seat, text: nameMap.text(bubble.text),
-        at: bubble.at };
-    });
-  }
-
   function clampName(name) {
     var n = name || "";
     return n.length > 24 ? n.slice(0, 23) + "…" : n;
@@ -672,97 +734,106 @@
 
   // ---- Event feed ----------------------------------------------------------
 
-  function shedSuffix(event) {
-    var parts = [];
-    if (event.captured > 0) parts.push("captures " + event.captured);
-    if (event.reserved > 0) {
-      parts.push("banks " + event.reserved + " to reserve");
+  // Round numbers in events are 0-based per the sim; a payload that counts
+  // from 1 is tolerated by reading the first round event.
+  function roundBase(events) {
+    for (var i = 0; i < events.length; i++) {
+      if (events[i].kind === "round") return events[i].round === 1 ? 1 : 0;
     }
-    return parts.length ? " — " + parts.join(", ") : "";
+    return 0;
   }
 
-  function describeEvent(event, nameMap) {
+  function spellTokens(tokens, nameMap) {
+    return (tokens || []).map(function (t) { return nameMap.glyph(t); })
+      .join(" ");
+  }
+
+  // `ctx` carries what a line needs from earlier events: the current
+  // round's pairs (for lineups) and the running success tally.
+  function describeEvent(event, nameMap, ctx) {
     function name(i) {
       return clampName(nameMap.seat(i));
     }
     switch (event.kind) {
       case "start":
-        return "Pieces set — " + name(event.seat) + " moves first.";
-      case "say":
-        return name(event.seat) + ": “" + nameMap.text(event.text) + "”";
-      case "move":
-        var stack = event.stack || [];
-        var height = stack.length;
-        var landed = "";
-        if (height > event.count) {
-          // The old top of the destination is just under the carried pieces
-          // (shedding only ever removes from the bottom).
-          var oldTop = stack[height - 1 - event.count];
-          landed = oldTop === event.seat ?
-            " (grows a stack of " + height + ")" :
-            " (takes control of a stack of " + height + ")";
-        }
-        return name(event.seat) + ": " + cellName(event.from) + " ×" +
-          event.count + " " + (DIRS[event.dir] || event.dir || "") + " → " +
-          cellName(event.to) + landed + shedSuffix(event) + ".";
-      case "place":
-        var placed = event.stack || [];
-        return name(event.seat) + " drops a reserve piece on " +
-          cellName(event.to) +
-          (placed.length > 1 ? " (now a stack of " + placed.length + ")" :
-            "") + shedSuffix(event) + ".";
+        return "Table set — sixteen glyphs, no meanings.";
+      case "round":
+        return "Pairs: " + (event.pairs || []).map(function (p) {
+          return name(p.speaker) + " → " + name(p.listener);
+        }).join(" · ");
+      case "speak":
+        return name(event.seat) + " → " + name(event.other) + ": " +
+          spellTokens(event.tokens, nameMap);
+      case "pick":
+        var pair = ctx.pairs && ctx.pairs[event.pair];
+        var lineup = pair && pair.lineup || [];
+        var chosen = lineup[event.pick];
+        var letter = LETTERS[event.pick] || "?";
+        var verdict = event.correct ? " — ✔" :
+          " — ✘ it was " + (pair ? sceneText(pair.target) : "?");
+        return name(event.seat) + " picks " + letter +
+          (chosen !== undefined ? " (" + sceneText(chosen) + ")" : "") +
+          verdict;
       case "end":
-        return endText(event.seat, event.text, name);
+        return endText(event, ctx);
       default: return JSON.stringify(event);
     }
   }
 
-  function endText(winner, reason, name) {
-    var loser = winner >= 0 ? 1 - winner : -1;
-    if (reason === "no-moves" && winner >= 0) {
-      return name(winner) + " wins — " + name(loser) + " cannot move.";
-    }
-    if (winner < 0) {
-      return (reason === "deadline" ? "Episode deadline — " :
-        "Ply cap reached — ") + "draw on material.";
-    }
-    return (reason === "deadline" ? "Episode deadline — " :
-      reason === "cap" ? "Ply cap reached — " : "") +
-      name(winner) + " wins on material.";
-  }
-
-  function plyBlock(event) {
-    return Math.floor((event.ply || 0) / 10);
+  function endText(event, ctx) {
+    var total = ctx.pairRounds || 0;
+    var pct = total ? Math.round(ctx.successes / total * 100) : 0;
+    return "Final — " + ctx.successes + "/" + total + " (" + pct + "%)" +
+      (event.text === "deadline" ? " — episode deadline." : ".");
   }
 
   function blockHead(block) {
-    return "PLIES " + (block * 10 + 1) + "–" + (block * 10 + 10);
+    return block < 0 ? "SETUP" : "ROUND " + (block + 1);
   }
 
-  // Renders the full transcript grouped into one section per ten plies.
+  // Renders the full transcript grouped into one section per round.
   // currentIndex (replay) marks how far playback has reached; omit it for
   // live views.
   function renderFeed(element, events, nameMap, currentIndex) {
     var live = currentIndex === undefined;
     var limit = live ? events.length : currentIndex;
+    var base = roundBase(events);
     var html = "";
     var lastBlock = null;
+    var ctx = { pairs: null, successes: 0, pairRounds: 0 };
+    var lastNotes = {};
     for (var i = 0; i < events.length; i++) {
       var event = events[i];
-      var block = plyBlock(event);
+      var block = event.kind === "start" ? -1 :
+        event.kind === "end" ? lastBlock : event.round - base;
       if (block !== lastBlock) {
         html += '<div class="feed-round-head">' + blockHead(block) +
           "</div>";
         lastBlock = block;
       }
-      var took = (event.kind === "move" || event.kind === "place") &&
-        event.captured > 0;
+      if (event.kind === "round") ctx.pairs = event.pairs || [];
+      if (event.kind === "pick") {
+        ctx.pairRounds += 1;
+        if (event.correct) ctx.successes += 1;
+      }
+      var scored = event.kind === "pick" && event.correct;
       var cls = "feed-line feed-" + event.kind +
+        (event.kind === "speak" ? " seat" + (event.seat % COLORS.length) :
+          "") +
         (event.kind === "end" ? " feed-rwin" : "") +
-        (took ? " feed-score seat" + (event.seat % COLORS.length) : "") +
+        (scored ? " feed-score seat" + (event.seat % COLORS.length) : "") +
         (i >= limit ? " feed-future" : "");
       html += '<div class="' + cls + '">' +
-        escapeHtml(describeEvent(event, nameMap)) + "</div>";
+        escapeHtml(describeEvent(event, nameMap, ctx)) + "</div>";
+      // Notes: say-styled, only when the seat's notes changed.
+      if ((event.kind === "speak" || event.kind === "pick") && event.text &&
+          event.text !== lastNotes[event.seat]) {
+        lastNotes[event.seat] = event.text;
+        html += '<div class="feed-line feed-say' +
+          (i >= limit ? " feed-future" : "") + '">' +
+          escapeHtml(clampName(nameMap.seat(event.seat)) + " notes: " +
+            nameMap.text(event.text)) + "</div>";
+      }
     }
     element.innerHTML = html;
 
@@ -794,57 +865,67 @@
   // ---- Animation bookkeeping ----------------------------------------------
 
   // Turns a monotonically-growing event list into transient view effects:
-  // speech bubbles, and the timestamp of the newest move (the arrow fades
-  // from it).
+  // per pair, when its message landed (the ribbon slides in from it) and
+  // when its pick landed (the verdict flash fades from it).
   function makeEffects() {
     var seen = 0;
-    var bubbles = [];
-    var lastMoveAt = null;
+    var speakAt = [null, null];
+    var pickAt = [null, null];
     return {
       // `quiet` (a scrub jump): the whole prefix lands at once, so only
       // the newest events get to animate — replaying every historical
-      // shout as a fresh bubble would paper the board.
+      // verdict as a fresh flash would strobe the table.
       absorb: function (events, quiet) {
         var now = Date.now();
         for (; seen < events.length; seen++) {
           var event = events[seen];
-          var animate = !quiet || seen >= events.length - 2;
-          if (event.kind === "move" || event.kind === "place") {
-            lastMoveAt = now;
-          } else if (event.kind === "say") {
-            if (!animate) continue;
-            bubbles = bubbles.filter(function (b) {
-              return b.seat !== event.seat;
-            });
-            bubbles.push({ seat: event.seat, text: event.text, at: now });
+          var animate = !quiet || seen >= events.length - 1;
+          if (event.kind === "round") {
+            speakAt = [null, null];
+            pickAt = [null, null];
+          } else if (event.kind === "speak") {
+            speakAt[event.pair] = animate ? now : null;
+          } else if (event.kind === "pick") {
+            pickAt[event.pair] = animate ? now : null;
           }
         }
-        var cutoff = now - BUBBLE_MS;
-        bubbles = bubbles.filter(function (b) { return b.at > cutoff; });
       },
       reset: function () {
-        seen = 0; bubbles = []; lastMoveAt = null;
+        seen = 0; speakAt = [null, null]; pickAt = [null, null];
       },
       view: function () {
-        return { bubbles: bubbles, lastMoveAt: lastMoveAt };
+        return { effects: { speakAt: speakAt.slice(), pickAt: pickAt.slice() } };
       }
     };
   }
 
   // ---- Scorebug, header, endscreen ----------------------------------------
 
+  function phaseText(state, nameMap) {
+    var m = /^(speak|pick)([01])$/.exec(state.phase || "");
+    var pairs = state.pairs || [];
+    if (!m || !pairs[Number(m[2])]) return "";
+    var pair = pairs[Number(m[2])];
+    var seat = m[1] === "speak" ? pair.speaker : pair.listener;
+    var who = nameMap ? nameMap.seat(seat) :
+      (state.seats && state.seats[seat] || {}).name || ("Seat " + seat);
+    return clampName(who).toUpperCase() +
+      (m[1] === "speak" ? " SPEAKS" : " LISTENS");
+  }
+
   function matchHeader(state, config, nameMap) {
     var parts = [];
     if (state) {
-      parts.push("PLY " + (state.ply || 0) +
-        (config && config.maxPlies ? " / " + config.maxPlies : ""));
-      if (state.gameDone) {
+      var played = state.roundsPlayed || 0;
+      var inRound = /^(speak|pick)[01]$/.test(state.phase || "");
+      var total = state.rounds || (config && config.rounds) || 0;
+      parts.push("ROUND " + (played + (inRound ? 1 : 0)) +
+        (total ? " / " + total : ""));
+      if (state.gameDone || state.done) {
         parts.push("FINAL");
-      } else if (typeof state.turn === "number" && state.turn >= 0) {
-        var mover = nameMap ? nameMap.seat(state.turn) :
-          (state.seats && state.seats[state.turn] || {}).name ||
-          ("Seat " + state.turn);
-        parts.push(clampName(mover).toUpperCase() + " TO MOVE");
+      } else {
+        var phase = phaseText(state, nameMap);
+        if (phase) parts.push(phase);
       }
     }
     return parts.join(" · ");
@@ -852,20 +933,24 @@
 
   function updateScorebug(container, state, nameMap) {
     if (!container || !state || !state.seats) return;
+    var pending = pendingSeat(state.phase, state.pairs || []);
     var html = "";
     state.seats.forEach(function (seat, index) {
       var pips = "";
-      for (var p = 0; p < Math.min(seat.captured || 0, 12); p++) {
+      for (var p = 0; p < Math.min(seat.asSpeaker || 0, 12); p++) {
         pips += '<span class="plate-pip"></span>';
+      }
+      for (var q = 0; q < Math.min(seat.asListener || 0, 12); q++) {
+        pips += '<span class="plate-pip hollow"></span>';
       }
       var plateName = nameMap ? nameMap.seat(index) : seat.name;
       html += '<div class="plate ' + seatColor(index) + '">' +
         '<span class="plate-name">' + escapeHtml(clampName(plateName)) +
         "</span>" +
-        (seat.acting && !state.gameDone ?
+        (pending === index && !state.gameDone ?
           '<span class="plate-it">▶</span>' : "") +
-        '<span class="plate-score">' + (seat.material || 0) + "</span>" +
-        '<span class="plate-label">material</span>' +
+        '<span class="plate-score">' + (seat.correct || 0) + "</span>" +
+        '<span class="plate-label">correct</span>' +
         '<span class="plate-pips">' + pips + "</span>" +
         "</div>";
     });
@@ -876,15 +961,10 @@
   }
 
   function reasonLine(results) {
-    var winner = results.win ? results.win.indexOf(true) : -1;
     switch (results.reason) {
-      case "no-moves": return "opponent could not move";
-      case "cap":
-        return winner >= 0 ? "ply cap: won on material" :
-          "ply cap: level on material";
       case "deadline":
-        return winner >= 0 ? "episode deadline: won on material" :
-          "episode deadline: level on material";
+        return "episode deadline: scored on " + (results.rounds || 0) +
+          " of " + (results.maxRounds || results.rounds || 0) + " rounds";
       default: return "";
     }
   }
@@ -898,46 +978,49 @@
     var names = (results.names || []).map(function (name, i) {
       return nameMap ? nameMap.seat(i) : name;
     });
+    var scores = results.scores || [];
+    var correct = results.correct || [];
     var order = names.map(function (_, i) { return i; });
     order.sort(function (a, b) {
-      var byScore = ((results.scores || [])[b] || 0) -
-        ((results.scores || [])[a] || 0);
+      var byScore = (scores[b] || 0) - (scores[a] || 0);
       if (byScore) return byScore;
-      return ((results.material || [])[b] || 0) -
-        ((results.material || [])[a] || 0);
+      return (correct[b] || 0) - (correct[a] || 0);
     });
-    var winnerIndex = results.win ? results.win.indexOf(true) : -1;
-    var verdictColor = winnerIndex >= 0 ? seatColor(winnerIndex) : "";
-    var verdict = winnerIndex >= 0 ?
-      escapeHtml(names[winnerIndex]) + " WINS" : "DRAW";
+    var topIndex = order.length ? order[0] : -1;
+    var level = order.every(function (i) {
+      return (scores[i] || 0) === (scores[topIndex] || 0);
+    });
+    var verdictColor = !level && topIndex >= 0 ? seatColor(topIndex) : "";
+    var verdict = !level && topIndex >= 0 ?
+      escapeHtml(names[topIndex]) + " LEADS THE TABLE" : "ALL LEVEL";
     var reason = reasonLine(results);
     var html = '<div class="end-panel">' +
-      '<div class="end-title">FINAL — ' + (results.plies || 0) + " PL" +
-      ((results.plies || 0) === 1 ? "Y" : "IES") + "</div>" +
+      '<div class="end-title">FINAL — ' + (results.rounds || 0) + " ROUND" +
+      ((results.rounds || 0) === 1 ? "" : "S") + "</div>" +
       '<div class="end-verdict ' + verdictColor + '">' + verdict + "</div>" +
       (reason ? '<div class="end-reason">' + escapeHtml(reason) + "</div>" :
         "") +
       '<div class="end-rows">' +
       '<span class="end-head"></span><span class="end-head"></span>' +
-      '<span class="end-head">material</span>' +
-      '<span class="end-head">reserve</span>' +
-      '<span class="end-head">captured</span>' +
-      '<span class="end-head">score</span>';
+      '<span class="end-head">score</span>' +
+      '<span class="end-head">correct</span>' +
+      '<span class="end-head">as speaker</span>' +
+      '<span class="end-head">as listener</span>';
     order.forEach(function (i, rank) {
-      var winner = results.win && results.win[i];
+      var leader = !level && i === topIndex;
       var cell = function (value) {
-        return '<span class="end-cell' + (winner ? " end-row-winner" : "") +
+        return '<span class="end-cell' + (leader ? " end-row-winner" : "") +
           '">' + value + "</span>";
       };
       html += '<span class="end-cell rank' +
-        (winner ? " end-row-winner" : "") + '">' + (rank + 1) + "</span>" +
+        (leader ? " end-row-winner" : "") + '">' + (rank + 1) + "</span>" +
         '<span class="end-cell name ' + seatColor(i) +
-        (winner ? " end-row-winner" : "") + '">' + escapeHtml(names[i]) +
+        (leader ? " end-row-winner" : "") + '">' + escapeHtml(names[i]) +
         "</span>" +
-        cell((results.material || [])[i] || 0) +
-        cell((results.reserve || [])[i] || 0) +
-        cell((results.captured || [])[i] || 0) +
-        cell(((results.scores || [])[i] || 0).toFixed(2));
+        cell((scores[i] || 0).toFixed(2)) +
+        cell(correct[i] || 0) +
+        cell((results.asSpeaker || [])[i] || 0) +
+        cell((results.asListener || [])[i] || 0);
     });
     html += "</div></div>";
     container.innerHTML = html;
@@ -969,13 +1052,11 @@
   function stateToView(state, nameMap, effects, extras) {
     var view = effects.view();
     view.seats = applyNames(state.seats, nameMap);
-    view.bubbles = renameBubbles(view.bubbles, nameMap);
-    view.board = state.board || [];
-    view.turn = typeof state.turn === "number" ? state.turn : -1;
-    view.ply = state.ply;
-    view.lastMove = state.lastMove || null;
-    view.winner = typeof state.winner === "number" ? state.winner : -1;
-    view.showControl = false;
+    view.pairs = state.pairs || [];
+    view.glyphs = state.glyphs || [];
+    view.phase = state.phase || "";
+    view.roundsPlayed = state.roundsPlayed || 0;
+    view.rounds = state.rounds || 0;
     view.now = Date.now();
     Object.assign(view, extras || {});
     return view;
@@ -988,8 +1069,9 @@
       var latest = null;
       var slot = -1;
       // Player pages get no policyNames (they must not learn who is
-      // behind a seat), so their map degrades to the board aliases.
-      var nameMap = makeNameMap([], null);
+      // behind a seat) and a redacted state (no pairs, no glyphs), so
+      // their map degrades to the table aliases and empty booths.
+      var nameMap = makeNameMap([], null, []);
       var effects = makeEffects();
       var scheme = location.protocol === "https:" ? "wss://" : "ws://";
       var url = scheme + location.host + options.wsPath;
@@ -1008,7 +1090,8 @@
             if (data.type === "state") latest = data;
             if (latest) {
               if (typeof latest.slot === "number") slot = latest.slot;
-              nameMap = makeNameMap(seatNames(latest), latest.policyNames);
+              nameMap = makeNameMap(seatNames(latest), latest.policyNames,
+                latest.glyphs);
               effects.absorb(latest.events || []);
               if (options.feed) {
                 renderFeed(options.feed, latest.events || [], nameMap,
@@ -1023,7 +1106,9 @@
             if (data.type === "final") {
               updateEndscreen(options.endscreen, data, true, nameMap);
             }
-            if (latest && latest.done) setStatus("final", false);
+            if (latest && (latest.done || latest.gameDone)) {
+              setStatus("final", false);
+            }
           }
           if (options.onFrame) options.onFrame(data);
         };
@@ -1054,8 +1139,9 @@
     });
   }
 
-  // Scrubber: a click/drag-to-seek track with one span per ten plies, a
-  // marker per capturing move (colored by the mover) and the end (taller).
+  // Scrubber: a click/drag-to-seek track with one span per round, a marker
+  // per pick (coloured by the listener on success, a neutral ghost on
+  // failure) and the end (taller).
   function buildScrub(container, events, onSeek) {
     container.innerHTML = "";
     var track = document.createElement("div");
@@ -1064,10 +1150,12 @@
     var fill = document.createElement("div");
     fill.className = "scrub-fill";
     container.appendChild(fill);
+    var base = roundBase(events);
     var blockStarts = [];
     var lastBlock = null;
     events.forEach(function (event, i) {
-      var block = plyBlock(event);
+      var block = event.kind === "start" ? -1 :
+        event.kind === "end" ? lastBlock : event.round - base;
       if (block !== lastBlock) {
         blockStarts.push(i);
         lastBlock = block;
@@ -1090,11 +1178,11 @@
     });
     events.forEach(function (event, i) {
       var kind = event.kind;
-      var took = (kind === "move" || kind === "place") && event.captured > 0;
-      if (!took && kind !== "end") return;
-      var seat = kind === "end" ? Math.max(event.seat, 0) : event.seat;
+      if (kind !== "pick" && kind !== "end") return;
       var marker = document.createElement("div");
-      marker.className = "beat-marker seat" + (seat % COLORS.length) +
+      marker.className = "beat-marker" +
+        (kind === "pick" && event.correct ?
+          " seat" + (event.seat % COLORS.length) : "") +
         (kind === "end" ? " death" : "");
       marker.style.left = ((i + 1) / events.length * 100) + "%";
       container.appendChild(marker);
@@ -1139,7 +1227,9 @@
     var payload = options.payload;
     var events = payload.events || [];
     var states = payload.states || [];
-    var nameMap = makeNameMap(payload.names, payload.policyNames);
+    var config = payload.config || {};
+    var nameMap = makeNameMap(payload.names, payload.policyNames,
+      config.glyphs);
     var index = 0;
     var playing = true;
     var lastStep = 0;
@@ -1158,8 +1248,14 @@
       }
 
       function currentState() {
-        return states[Math.min(index, states.length - 1)] ||
-          { seats: [], board: [], turn: -1, ply: 0 };
+        var state = states[Math.min(index, states.length - 1)] ||
+          { seats: [], pairs: [], phase: "", roundsPlayed: 0 };
+        // The alphabet is per episode; frames may omit it, the config
+        // never does.
+        if (!state.glyphs && config.glyphs) {
+          state = Object.assign({}, state, { glyphs: config.glyphs });
+        }
+        return state;
       }
 
       function setIndex(next, jumped) {
@@ -1175,7 +1271,7 @@
         }
         if (options.clock) {
           options.clock.textContent =
-            matchHeader(currentState(), payload.config, nameMap);
+            matchHeader(currentState(), config, nameMap);
         }
         updateScorebug(options.scorebug, currentState(), nameMap);
         updateEndscreen(options.endscreen, payload.results,
@@ -1185,13 +1281,14 @@
 
       (function frame(timestamp) {
         // Dwell on what the viewer is currently looking at — the event
-        // just absorbed — so bubbles get read and the move arrow gets
+        // just absorbed — so the message gets read and the verdict gets
         // seen before the next beat.
         var shown = index > 0 ? events[index - 1] : null;
-        var stepMs = shown && shown.kind === "say" ? 1500 :
-          shown && (shown.kind === "move" || shown.kind === "place") ? 900 :
+        var stepMs = shown && shown.kind === "speak" ? 1600 :
+          shown && shown.kind === "pick" ? 2000 :
+          shown && shown.kind === "round" ? 800 :
           shown && shown.kind === "end" ? 1500 :
-          500;
+          600;
         if (playing && index < events.length &&
             timestamp - lastStep > stepMs) {
           lastStep = timestamp;
@@ -1213,7 +1310,7 @@
     });
   }
 
-  window.FocusRenderer = {
+  window.BabelRenderer = {
     attachLive: attachLive,
     attachReplay: attachReplay,
     renderFeed: renderFeed,

@@ -1,4 +1,4 @@
-// Focus static replay shell: fetches the replay named by ?replay=<url>,
+// Babel static replay shell: fetches the replay named by ?replay=<url>,
 // hands the bytes to the wasm module (which re-derives the state timeline
 // with the same Nim sim the game server runs), then drives the shared
 // renderer with the resulting payload.
@@ -21,20 +21,20 @@
   function start(module, bytes) {
     var ptr = module._malloc(bytes.length);
     module.HEAPU8.set(bytes, ptr);
-    var ok = module._foc_load_replay(ptr, bytes.length);
+    var ok = module._bab_load_replay(ptr, bytes.length);
     module._free(ptr);
     if (!ok) {
-      fail(readString(module, module._foc_error_ptr(),
-        module._foc_error_len()) || "wasm rejected the replay");
+      fail(readString(module, module._bab_error_ptr(),
+        module._bab_error_len()) || "wasm rejected the replay");
       return;
     }
     var payload = JSON.parse(
-      readString(module, module._foc_payload_ptr(),
-        module._foc_payload_len())
+      readString(module, module._bab_payload_ptr(),
+        module._bab_payload_len())
     );
     var loading = document.getElementById("loading");
     if (loading) loading.style.display = "none";
-    FocusRenderer.attachReplay({
+    BabelRenderer.attachReplay({
       canvas: document.getElementById("table"),
       feed: document.getElementById("feed"),
       scrub: document.getElementById("scrub"),
@@ -59,7 +59,7 @@
         if (!response.ok) throw new Error("replay fetch " + response.status);
         return response.arrayBuffer();
       }),
-      FocusReplayModule()
+      BabelReplayModule()
     ]).then(function (results) {
       start(results[1], new Uint8Array(results[0]));
     }).catch(function (error) {

@@ -1,6 +1,6 @@
 services:
-  focus:
-    image: coworld-focus:latest
+  babel:
+    image: coworld-babel:latest
     platform: linux/amd64
     build:
       context: .

@@ -21,28 +21,28 @@ export PATH="$HOME/.nimby/nim/bin:$PATH"
 if command -v emcc >/dev/null && command -v nim >/dev/null; then
   # Local toolchain: build the wasm module directly.
   (cd "${repo_dir}" && nim c --hints:off -d:emscripten \
-    replay-viewer/focus_replay.nim)
+    replay-viewer/babel_replay.nim)
 else
   # Fall back to the pinned emsdk container.
-  image_tag="focus-replay-viewer-build:$$"
+  image_tag="babel-replay-viewer-build:$$"
   docker build --platform linux/amd64 \
     --file "${repo_dir}/Dockerfile.replay-viewer" \
     --tag "${image_tag}" "${repo_dir}"
   container_id="$(docker create "${image_tag}")"
   rm -rf "${repo_dir}/replay-viewer/dist"
-  docker cp "${container_id}:/workspace/focus/replay-viewer/dist" \
+  docker cp "${container_id}:/workspace/babel/replay-viewer/dist" \
     "${repo_dir}/replay-viewer/dist"
   docker rm "${container_id}" >/dev/null
   docker image rm "${image_tag}" >/dev/null
 fi
 
 dist="${repo_dir}/replay-viewer/dist"
-test -s "${dist}/focus_replay.wasm"
-test -s "${dist}/focus_replay.js"
+test -s "${dist}/babel_replay.wasm"
+test -s "${dist}/babel_replay.js"
 
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}/assets"
-cp "${dist}/focus_replay.js" "${dist}/focus_replay.wasm" "${output_dir}/"
+cp "${dist}/babel_replay.js" "${dist}/babel_replay.wasm" "${output_dir}/"
 cp "${repo_dir}/replay-viewer/index.html" \
   "${repo_dir}/replay-viewer/static_replay.js" \
   "${repo_dir}/client/renderer.js" \
@@ -56,4 +56,4 @@ done
 
 test -f "${output_dir}/index.html"
 grep -q 'data-replay' "${output_dir}/static_replay.js"
-echo "focus replay viewer bundle: ${output_dir}"
+echo "babel replay viewer bundle: ${output_dir}"
