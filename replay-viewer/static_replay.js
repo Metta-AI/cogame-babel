@@ -12,6 +12,23 @@
   "use strict";
 
   var FETCH_TIMEOUT_MS = 20000;
+
+  // VIEWER -> HOST READINESS. An embedding page (the softmax.com theater, the
+  // Observatory episode page) can only see this document's `load` event,
+  // which fires long before the wasm module has compiled and the replay has
+  // come back from S3. So the shell tells the parent what it is doing:
+  // `loading` as soon as this script runs (before `load`, so the host never
+  // mistakes document-load for a picture), `ready` once the renderer has
+  // drawn its first frame, `error` when the replay cannot be shown. Same
+  // envelope shape as the ctf-shell Escape bridge ({src, type}); no secrets
+  // ride on it, so the target origin is "*".
+  function tell(type, message) {
+    if (window.parent === window) return;
+    var envelope = { src: "coworld-replay", type: type };
+    if (message) envelope.message = message;
+    try { window.parent.postMessage(envelope, "*"); } catch (ignore) {}
+  }
+  tell("loading");
   var modulePromise = null;
   var attempt = 0;
 
@@ -37,6 +54,7 @@
       loading.appendChild(retry);
     }
     document.documentElement.setAttribute("data-replay-error", message);
+    tell("error", message);
   }
 
   function readString(module, ptr, len) {
@@ -98,6 +116,11 @@
       endscreen: document.getElementById("endscreen"),
       assetBase: "./assets",
       payload: payload
+    });
+    // The renderer draws on its own animation frame; report ready one frame
+    // later so "ready" means a picture, not merely a parsed payload.
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () { tell("ready"); });
     });
   }
 
