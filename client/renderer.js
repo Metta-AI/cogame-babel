@@ -1240,12 +1240,26 @@
         playing = false;
         setIndex(next, true);
       });
-      if (options.playButton) {
-        options.playButton.onclick = function () {
-          playing = !playing;
-          if (playing && index >= events.length) setIndex(0, true);
-        };
+      function togglePlay() {
+        playing = !playing;
+        if (playing && index >= events.length) setIndex(0, true);
       }
+      if (options.playButton) {
+        options.playButton.onclick = togglePlay;
+      }
+      // Space pauses/unpauses, same state the play button toggles. Form
+      // fields keep the key for themselves; preventDefault stops the page
+      // from scrolling (and a focused button from re-firing its click).
+      document.addEventListener("keydown", function (evt) {
+        if (evt.code !== "Space") return;
+        var target = evt.target;
+        if (target && (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable)) return;
+        evt.preventDefault();
+        togglePlay();
+      });
 
       function currentState() {
         var state = states[Math.min(index, states.length - 1)] ||
