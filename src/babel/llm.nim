@@ -124,6 +124,10 @@ proc newLlmClient*(config: GameConfig): LlmClient =
     result.disabled = true
     echo "babel llm: no LLM credentials; using scripted fallback"
 
+proc newScriptedClient*(seed: int): LlmClient =
+  ## Runs the baseline without resolving model credentials or opening a transport.
+  LlmClient(rand: initRand(seed xor 0x5EED), disabled: true)
+
 # ---- Scripted baseline ------------------------------------------------------
 
 const
@@ -252,7 +256,7 @@ proc renderHistory(sim: Sim, seat: int): string =
     return "(no rounds played yet)"
   lines.join("\n")
 
-proc systemPrompt(sim: Sim, seat: int): string =
+proc systemPrompt*(sim: Sim, seat: int): string =
   let me = sim.seatName(seat)
   "You are " & me & ", a cog playing Babel with three other cogs." &
     """
@@ -297,7 +301,7 @@ proc commonBlock(sim: Sim, seat: int): string =
     (if sim.notes[seat].len > 0: sim.notes[seat] else: "(none)") & "\n\n")
   result.add("YOUR HISTORY:\n" & sim.renderHistory(seat) & "\n\n")
 
-proc speakerPrompt(sim: Sim, pair: int, prompt: string): string =
+proc speakerPrompt*(sim: Sim, pair: int, prompt: string): string =
   let plan = sim.plan
   let seat = plan.speakers[pair]
   result.add("Round " & $(sim.round + 1) & " of " & $sim.config.rounds &
@@ -310,7 +314,7 @@ proc speakerPrompt(sim: Sim, pair: int, prompt: string): string =
     "glyphs from your alphabet, one glyph per array entry; notes at most " &
     $MaxNotesLen & " characters.")
 
-proc listenerPrompt(sim: Sim, pair: int, prompt: string): string =
+proc listenerPrompt*(sim: Sim, pair: int, prompt: string): string =
   let plan = sim.plan
   let seat = plan.listeners[pair]
   let speaker = sim.seatName(plan.speakers[pair])

@@ -17,7 +17,7 @@ proc fixture(seed: int, rounds = 24): GameConfig =
     result.tokens.add("t" & $index)
 
 proc playScripted(config: GameConfig): Sim =
-  let client = newLlmClient(config)
+  let client = newScriptedClient(config.seed)
   result = initSim(config)
   while not result.done:
     let call = result.currentCall()
@@ -77,9 +77,9 @@ suite "scripted baseline":
       total, " = ", rate
     check rate > 0.75
 
-  test "decide falls back to scripted with no credentials":
+  test "decide falls back to scripted with a scripted client":
     let config = fixture(3, rounds = 4)
-    let client = newLlmClient(config)
+    let client = newScriptedClient(config.seed)
     var sim = initSim(config)
     sim.beginRound()
     let spoken = client.decide(sim, sim.currentCall(), "say shape first",
