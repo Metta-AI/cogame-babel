@@ -94,6 +94,9 @@ uv run coworld secret put babel anthropic_api_key <keyfile>   # hosted Claude
 
 ## Fielding a policy
 
+For model training from complete local games, see
+[docs/training.md](docs/training.md).
+
 ```bash
 uv run coworld upload-policy <babel image> --name my-babel \
   --run /bin/babel-player \
