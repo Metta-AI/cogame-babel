@@ -3,22 +3,20 @@
 ## Endpoints:
 ##   GET /healthz                    - liveness
 ##   GET /client/global              - spectator page
-##   GET /client/player              - player page (view-only; policies are prompts)
+##   GET /client/player              - player page
 ##   GET /client/replay              - replay page (replay mode)
 ##   GET /client/renderer.js         - shared stage renderer
 ##   GET /client/assets/<name>       - sprites and fonts
-##   WS  /player?slot=N&token=T      - player protocol (prompt delivery)
+##   WS  /player?slot=N&token=T      - player observation/action protocol
 ##   WS  /global                     - spectator snapshots
 ##   WS  /replay                     - replay payload (replay mode)
 ##
-## Player protocol (babel.player.v1), all JSON text frames:
+## Player protocol (babel.player.v2), all JSON text frames:
 ##   game -> player: {"type":"welcome","slot":N,"name":...}
-##                   {"type":"state",...} after every event (redacted to
-##                   the seat's own tallies: Babel has hidden information)
+##                   {"type":"decision",...} with one private task
+##                   {"type":"state",...} after every event
 ##                   {"type":"final","scores":[...],"correct":[...]}
-##   player -> game: {"type":"prompt","prompt":"...","scripted":bool}
-##                   (max 4000 chars; scripted:true plays the built-in
-##                   code-and-decode baseline for that seat)
+##   player -> game: {"type":"action","id":N,"action":{...}}
 
 import
   std/[json, locks, os, sets, strutils, tables, times],
@@ -26,19 +24,18 @@ import
   curly,
   mummy,
   mummy/routers,
-  llm,
+  game_policy,
+  player_view,
   sim
 
 const
-  MaxPromptLen = 4000
   ReplayVersion = 1
 
 type
   GameState = object
     config: GameConfig
     sim: Sim
-    prompts: seq[string]
-    scripted: seq[bool]
+    pendingActions: Table[int, JsonNode]
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
     globalSockets: HashSet[WebSocket]
@@ -93,9 +90,8 @@ proc snapshotJson(gs: GameState): JsonNode =
 
 proc playerStateJson(gs: GameState, slot: int): JsonNode =
   ## Babel has hidden information (targets, lineups, notes, and the other
-  ## pair's traffic are not for the seats), so a player sees only its own
-  ## seat's tallies, the round counter, and whether the episode is done.
-  ## Decisions are server-side, so this loses nothing.
+  ## pair's traffic are not for the seats), so a state update contains only
+  ## this seat's tallies. The separate decision frame carries its private task.
   %*{
     "type": "state",
     "slot": slot,
@@ -267,7 +263,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         config.tokens.len, " players connected"
       state.broadcastLocked()
 
-    let client = newLlmClient(config)
+    let fallbackClient = newScriptedPolicy(config.seed)
 
     ## The platform kills the episode at its timeout and keeps nothing.
     ## Play inside a fraction of it so results and the replay are written
@@ -293,13 +289,14 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
     while true:
       var simCopy: Sim
       var call: Call
-      var seatPrompt: string
-      var seatScripted: bool
+      var playerSocket: WebSocket
+      var hasSocket: bool
+      var pastDeadline: bool
       withLock stateLock:
         if state.sim.done:
           break
         call = state.sim.currentCall()
-        let pastDeadline = playDeadline > 0.0 and epochTime() > playDeadline
+        pastDeadline = playDeadline > 0.0 and epochTime() > playDeadline
         if call.kind == ckRound:
           if pastDeadline:
             ## The platform kills an episode that outruns its timeout and
@@ -317,15 +314,49 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           state.broadcastLocked()
           continue
         simCopy = state.sim
-        seatPrompt = state.prompts[call.seat]
-        ## Past the deadline the rest of the current round is decided by
-        ## the scripted baseline (instant) so the round completes.
-        seatScripted = state.scripted[call.seat] or pastDeadline
+        hasSocket = state.playerSockets.hasKey(call.seat)
+        if hasSocket:
+          playerSocket = state.playerSockets[call.seat]
+        state.pendingActions.del(call.seat)
 
-      ## The slow part (Claude) runs outside the lock on a snapshot; only
-      ## this thread mutates the sim, so the snapshot cannot go stale.
-      let decision = client.decide(simCopy, call, seatPrompt,
-        scripted = seatScripted)
+      let view = simCopy.decisionView(call)
+      if hasSocket and not pastDeadline:
+        try:
+          playerSocket.send($view)
+        except CatchableError as error:
+          echo "babel: could not send decision to seat ", call.seat,
+            ": ", error.msg
+          hasSocket = false
+      var response: JsonNode
+      let decisionDeadline = epochTime() + config.decisionTimeoutSeconds.float
+      while hasSocket and not pastDeadline and
+          epochTime() < decisionDeadline:
+        withLock stateLock:
+          if state.pendingActions.hasKey(call.seat):
+            let candidate = state.pendingActions[call.seat]
+            state.pendingActions.del(call.seat)
+            if candidate{"id"}.getInt(-1) == view["id"].getInt():
+              response = candidate
+        if response != nil:
+          break
+        sleep(10)
+
+      var decision: Decision
+      var scripted = true
+      if response != nil:
+        try:
+          let action = response["action"]
+          if call.kind == ckSpeak:
+            decision = parseSpeak(simCopy, call.seat, action)
+          else:
+            decision = parsePick(action)
+          scripted = response{"source"}.getStr() != "llm"
+        except CatchableError as error:
+          echo "babel: player action rejected (", error.msg,
+            "); using scripted fallback"
+          decision = fallbackClient.scriptedAction(simCopy, call)
+      else:
+        decision = fallbackClient.scriptedAction(simCopy, call)
 
       withLock stateLock:
         echo "babel: round ", state.sim.round + 1, " pair ", call.pair, " ",
@@ -334,14 +365,14 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         try:
           if call.kind == ckSpeak:
             state.sim.applySpeak(call.pair, decision.tokens, decision.notes,
-              seatScripted)
+              scripted)
           else:
             state.sim.applyPick(call.pair, decision.pick, decision.notes,
-              seatScripted)
+              scripted)
         except BabelError as error:
-          echo "babel: llm reply rejected (", error.msg,
+          echo "babel: player action rejected (", error.msg,
             "); using scripted fallback"
-          let fallback = client.scriptedAction(state.sim, call)
+          let fallback = fallbackClient.scriptedAction(state.sim, call)
           if call.kind == ckSpeak:
             state.sim.applySpeak(call.pair, fallback.tokens, "", true)
           else:
@@ -428,7 +459,7 @@ proc playerUpgradeHandler(request: Request) {.gcsafe.} =
         state.playerSockets.len, "/", state.config.tokens.len, ")"
       websocket.send($ %*{
         "type": "welcome",
-        "protocol": "babel.player.v1",
+        "protocol": "babel.player.v2",
         "slot": slot,
         "name": state.sim.names[slot],
         "rounds": state.config.rounds
@@ -472,16 +503,9 @@ proc websocketHandler(
         return
       try:
         let payload = parseJson(message.data)
-        if payload{"type"}.getStr() == "prompt":
-          var prompt = payload{"prompt"}.getStr()
-          if prompt.len > MaxPromptLen:
-            prompt = prompt[0 ..< MaxPromptLen]
-          let scripted = payload{"scripted"}.getBool(false)
+        if payload{"type"}.getStr() == "action":
           withLock stateLock:
-            state.prompts[slot] = prompt
-            state.scripted[slot] = scripted
-          echo "babel: slot ", slot, " delivered a prompt (",
-            prompt.len, " chars", (if scripted: ", scripted" else: ""), ")"
+            state.pendingActions[slot] = payload
       except CatchableError as error:
         echo "babel: ignoring bad player frame: ", error.msg
     of ErrorEvent:
@@ -548,8 +572,7 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
     raise newException(BabelError, "tokens and players must align")
   state.config = config
   state.sim = initSim(config)
-  state.prompts = newSeq[string](config.players.len)
-  state.scripted = newSeq[bool](config.players.len)
+  state.pendingActions.clear()
   runtimeConfigGlobal = runtimeConfig
 
   let router = buildRouter(replayMode = false)

@@ -1,20 +1,12 @@
-## Babel player: a policy is just a prompt.
-##
-## Connects to the game, delivers its prompt (from PLAYER_PROMPT, or a
-## default Babel strategy), then idles until the final frame. All of the
-## actual decision making happens inside the game server, which sends this
-## seat's prompt to Claude whenever the seat speaks or listens.
-##
-## PLAYER_SCRIPTED=1 registers the seat as the built-in code-and-decode
-## baseline instead: the server plays it deterministically, no LLM.
+## Babel player: scripted, prompt, or Jev policy over one private decision view.
 ##
 ## To field your own policy, reuse this image and set PLAYER_PROMPT:
 ##   coworld upload-policy <babel-image> --name my-babel \
 ##     --run /bin/babel-player --secret-env PLAYER_PROMPT="<your strategy>"
 
-import
-  std/[json, options, os, strutils],
-  whisky
+import std/[json, options, os, strutils]
+import whisky
+import babel/[jev_policy, llm, player_policy]
 
 const DefaultPrompt = """
 Invent a compositional code and stick to it: one glyph for each shape,
@@ -38,15 +30,13 @@ when isMainModule:
   if prompt.len == 0:
     prompt = DefaultPrompt
   let scripted = getEnv("PLAYER_SCRIPTED").strip() in ["1", "true", "yes"]
-
-  proc promptFrame(): string =
-    $ %*{"type": "prompt", "prompt": prompt, "scripted": scripted}
+  let jev = getEnv("PLAYER_JEV") == "1"
+  let client = if not scripted and not jev: newLlmClient() else: nil
 
   echo "babel player: connecting to game"
   let socket = newWebSocket(url)
-  socket.send(promptFrame())
-  echo "babel player: prompt delivered (", prompt.len, " chars",
-    (if scripted: ", scripted" else: ""), ")"
+  echo "babel player: policy=",
+    (if scripted: "scripted" elif jev: "jev" else: "prompt")
 
   while true:
     let received = socket.receiveMessage()
@@ -56,20 +46,38 @@ when isMainModule:
     let message = received.get()
     if message.kind != TextMessage:
       continue
-    try:
-      let payload = parseJson(message.data)
-      case payload{"type"}.getStr()
-      of "welcome":
-        echo "babel player: seated at slot ",
-          payload{"slot"}.getInt(), " as ", payload{"name"}.getStr()
-        ## Re-deliver the prompt after the welcome, in case the first send
-        ## raced the server's slot registration.
-        socket.send(promptFrame())
-      of "final":
-        echo "babel player: final scores ", payload{"scores"}
-        break
+    let payload = parseJson(message.data)
+    case payload{"type"}.getStr()
+    of "welcome":
+      echo "babel player: seated at slot ",
+        payload["slot"].getInt(), " as ", payload["name"].getStr()
+    of "decision":
+      var action: JsonNode
+      var source = "scripted"
+      if scripted:
+        action = scriptedAction(payload)
+      elif jev and not jevConfigured():
+        action = scriptedAction(payload)
+        source = "fallback"
+      elif not jev and client.disabled:
+        action = scriptedAction(payload)
+        source = "fallback"
       else:
-        discard
-    except CatchableError as error:
-      echo "babel player: ignoring bad frame: ", error.msg
+        try:
+          action = if jev: chooseJevAction(payload)
+                   else: promptAction(client, payload, prompt)
+          source = "llm"
+        except CatchableError as error:
+          echo "babel player: model call failed: ", error.msg
+          action = scriptedAction(payload)
+          source = "fallback"
+      socket.send($(%*{
+        "type": "action", "protocol": "babel.player.v2",
+        "id": payload["id"], "action": action, "source": source
+      }))
+    of "final":
+      echo "babel player: final scores ", payload["scores"]
+      break
+    else:
+      discard
   socket.close()

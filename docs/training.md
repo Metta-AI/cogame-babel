@@ -1,7 +1,7 @@
 # Training on Babel
 
-Babel's hosted player submits a prompt; the game server makes the
-language-model calls and accepts glyph messages or lineup picks. The
+Babel's hosted player receives a private decision and submits glyph messages
+or lineup picks. Prompt and Jev model calls run inside the player. The
 headless simulator also supports numeric Metta RL and native PufferLib
 training through a local bridge. Metta post-training learns from complete
 scripted games.
@@ -29,8 +29,9 @@ request uses the game's scripted compositional code and listener.
 ## Metta post-training
 
 The exporter runs the production Nim simulator for 24 rounds per seed. It
-records the exact system and user prompts sent to the model and the built-in
-scripted baseline's accepted JSON reply. Every seat's glyph alphabet is
+records offline prompt templates and the built-in scripted baseline's accepted
+JSON reply. These templates are training data, not the hosted player's exact
+request body. Every seat's glyph alphabet is
 seeded independently; speaker labels use the acting seat's visible glyphs.
 Whole games are assigned to training or validation by seed.
 
@@ -57,5 +58,5 @@ uv run --package metta-posttrain --extra train python -m metta_posttrain.train \
 
 Check the optimizer manifest for overlength examples with the chosen
 tokenizer. This dataset imitates the scripted baseline; it does not measure
-trained-model score. A trained model needs serving through the game's
-configured Anthropic or Bedrock provider before it can play.
+trained-model score. A trained model needs a player policy that serves it
+through the ordinary `babel.player.v2` action interface before it can play.

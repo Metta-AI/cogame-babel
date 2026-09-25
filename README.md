@@ -19,16 +19,12 @@ be grounded in-episode from the feedback after each round. Every seat
 keeps private notes the server feeds back verbatim — and records for the
 audience, who watch the dictionaries form.
 
-**The game is LLM-driven and a policy is just a prompt.** Whenever a seat
-speaks or listens the game server sends that seat's policy prompt, its
-alphabet, its notes, its own history, and the target (or the message and
-lineup) to Claude, which answers with the glyphs (or the pick) and new
-notes. Player containers exist only to deliver their prompt over the
-websocket. A built-in **scripted baseline** (a fixed shape/colour/count
-token code as speaker, a count-based association decoder as listener)
-plays any seat that registers as scripted — and every seat when no LLM
-credentials are available, so episodes (and offline certification) always
-complete.
+Each player receives a private `babel.player.v2` decision view and sends an
+ordinary action. The game owns hidden information, glyph validation, scores,
+and replay. The player may use a **scripted baseline**, a Claude prompt, or
+Jev. Model credentials and calls stay in the player container. A missing or
+invalid action falls back to the game's scripted baseline, so episodes
+complete when a player fails.
 
 Seats play under **anonymous cog names** (Sprocket, Gizmo, …): policy
 display names never reach the agents' prompts, so nobody can meta-game
@@ -47,10 +43,12 @@ play between rounds.
 - `src/babel/sim.nim` — pure rules: alphabet and per-seat views, pairing
   schedule, scenes and lineups, speak/pick, tallies, endings, replay
   derivation; shared by server, tests, and the wasm viewer
-- `src/babel/llm.nim` — Claude client + the scripted code-and-decode baseline
+- `src/babel/llm.nim` — player-side Claude transport and prompt building
+- `src/babel/game_policy.nim` — game-side action parsing and fallback
+- `src/babel/player_view.nim` — private decision observation
+- `src/babel/{player_policy,jev_policy}.nim` — player-side policies
 - `src/babel/server.nim` — mummy HTTP/WS server (player, global, replay)
-- `src/babel_player.nim` — the prompt-delivery player (`PLAYER_PROMPT` /
-  `PLAYER_SCRIPTED` env)
+- `src/babel_player.nim` — scripted, prompt, or Jev player
 - `client/` — shared canvas renderer + global/player/replay pages (the
   parley broadcast chrome around the Babel stage)
 - `replay-viewer/` — static wasm replay viewer (`?replay=<url>`)
@@ -78,9 +76,8 @@ nim r -d:release --path:src tests/test_bot.nim # scripted-baseline tests
 nim c -d:release -o:bin/babel src/babel.nim
 nim c -d:release -o:bin/babel-player src/babel_player.nim
 nim c --hints:off -d:emscripten replay-viewer/babel_replay.nim  # wasm viewer
-# See tmp/config.json for a four-seat fixture; run with COGAME_* env + 4
-# players (tmp/run_e2e.sh does this). Export ANTHROPIC_API_KEY for real
-# Claude play; omit for the scripted baseline.
+# Run with COGAME_* env and four player processes. Prompt credentials belong
+# in each player environment; the scripted policy needs none.
 ```
 
 Coworld packaging (from a metta checkout):
@@ -89,7 +86,6 @@ Coworld packaging (from a metta checkout):
 uv run coworld build --project <this dir> --version 0.1.x
 uv run coworld certify <this dir>/dist/coworld_manifest.json
 uv run coworld upload-coworld <this dir>/dist/coworld_manifest.json
-uv run coworld secret put babel anthropic_api_key <keyfile>   # hosted Claude
 ```
 
 ## Fielding a policy
@@ -104,3 +100,5 @@ uv run coworld upload-policy <babel image> --name my-babel \
 ```
 
 Or field the scripted coder: same image, `--env PLAYER_SCRIPTED=1`.
+Set `PLAYER_JEV=1` for Jev; its inference credential belongs to that player.
+Without a credential, prompt and Jev players send the scripted action.
