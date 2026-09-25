@@ -41,6 +41,5 @@ when isMainModule:
     ## the episode exactly.
     config = sampleEpisode(config)
     echo "babel: seats=", config.players.len,
-      " rounds=", config.rounds,
-      " model=", config.model
+      " rounds=", config.rounds
     runGameServer(config, runtimeConfig)

@@ -14,7 +14,7 @@
     "replay_viewer": {
       "bundle": "static-replay-viewer"
     },
-    "description": "Babel: an emergent-language referential game for four LLM-piloted cogs. A 16-glyph alphabet that means nothing, and 24 rounds to make it mean something. Every round the four seats split into two pairs, each with a SPEAKER and a LISTENER (partners and roles rotate so every ordered relation occurs once per six rounds). The speaker sees a target scene - a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4) - and sends a message of 1 to 8 glyphs. The listener sees the message and a lineup of four scenes (the target, a near miss, a partial match, and a clear miss) and picks one. Both score when the pick is right. Nothing but glyphs crosses between seats, and every seat sees the 16 tokens under its own seeded symbols in its own order, so no convention can be agreed in advance: meaning has to be grounded in-episode from feedback. Each seat keeps private notes the server feeds back every round (spectators watch the dictionaries form). Seats play under anonymous cog aliases. The game is LLM-driven: the server sends the acting seat's policy prompt plus its alphabet, notes, history, and the target or the message and lineup to Claude, so A POLICY IS JUST A PROMPT - build one by reusing the published player runnable and setting the PLAYER_PROMPT environment variable to your strategy. A built-in code-and-decode baseline plays any seat that registers as scripted - and every seat when no LLM credentials are available, so episodes always complete.",
+    "description": "Babel: an emergent-language referential game for four cogs. A 16-glyph alphabet that means nothing, and 24 rounds to make it mean something. Every round the four seats split into two pairs, each with a SPEAKER and a LISTENER (partners and roles rotate so every ordered relation occurs once per six rounds). The speaker sees a target scene - a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4) - and sends a message of 1 to 8 glyphs. The listener sees the message and a lineup of four scenes (the target, a near miss, a partial match, and a clear miss) and picks one. Both score when the pick is right. Nothing but glyphs crosses between seats, and every seat sees the 16 tokens under its own seeded symbols in its own order, so no convention can be agreed in advance: meaning has to be grounded in-episode from feedback. Each seat keeps private notes the game returns every round. Seats play under anonymous cog aliases. Scripted, prompt, and Jev policies choose actions in ordinary player containers; the game owns visibility, legality, results, and replay.",
     "owner": "daveey@gmail.com",
     "runnable": {
       "type": "game",
@@ -22,9 +22,6 @@
       "run": [
         "/bin/babel"
       ],
-      "env": {
-        "ANTHROPIC_API_KEY_URI": "secret://coworld/babel/anthropic_api_key"
-      },
       "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
     },
     "config_schema": {
@@ -96,18 +93,8 @@
           "maximum": 10000,
           "default": 300
         },
-        "model": {
-          "description": "Claude model that drives every seat.",
-          "type": "string",
-          "default": "claude-sonnet-5"
-        },
-        "maxOutputTokens": {
-          "type": "integer",
-          "minimum": 64,
-          "maximum": 2000,
-          "default": 900
-        },
-        "llmTimeoutSeconds": {
+        "decisionTimeoutSeconds": {
+          "description": "Maximum time for one player action before game fallback.",
           "type": "integer",
           "minimum": 5,
           "maximum": 300,
@@ -204,7 +191,7 @@
     "protocols": {
       "player": {
         "type": "text",
-        "value": "babel.player.v1 - JSON text frames over the websocket named by COWORLD_PLAYER_WS_URL (already carrying ?slot=N&token=T). A Babel policy is a prompt: the player container's only job is to deliver it; the game server makes every decision by sending that prompt plus the seat's alphabet, private notes, own history, and the target (speaker) or the message and lineup (listener) to Claude. game->player frames: {\"type\":\"welcome\",\"protocol\":\"babel.player.v1\",\"slot\":N,\"name\":str,\"rounds\":int} on connect; {\"type\":\"state\",\"slot\":N,\"name\":str,\"seat\":{score,correct,asSpeaker,asListener,roundsPlayed},\"round\":int,\"rounds\":int,\"roundsPlayed\":int,\"started\":bool,\"done\":bool,\"reason\":str} after every event - redacted to the seat's own tallies because Babel has hidden information (targets, lineups, notes, and the other pair's traffic are not for the seats; decisions are server-side so nothing is lost); {\"type\":\"final\",\"done\":true,\"scores\":[...],\"correct\":[...],\"asSpeaker\":[...],\"asListener\":[...],\"names\":[...],\"rounds\":int,\"reason\":str} at episode end, after which the player should exit. player->game frames: {\"type\":\"prompt\",\"prompt\":str,\"scripted\":bool} (prompt max 4000 chars; send after connect and again after welcome; the latest frame applies to all later calls; scripted:true plays the built-in code-and-decode baseline for this seat instead of the LLM). The published babel-player runnable reads its prompt from the PLAYER_PROMPT environment variable (PLAYER_SCRIPTED=1 for the scripted baseline), so a new policy is `coworld upload-policy` of the same image with --secret-env PLAYER_PROMPT=\"<your strategy>\"."
+        "value": "babel.player.v2 uses JSON text frames on COWORLD_PLAYER_WS_URL. The game sends welcome, redacted state, private decision, and final frames. Each decision has a unique id, acting slot, role, partner alias, that seat's 16 visible glyphs, private notes, and completed feedback from only its own pair. A speaker sees target scene id (shape*16+colour*4+count-1), never the lineup. A listener sees its partner's message in its own glyphs and four scene ids, never the target. The player returns {\"type\":\"action\",\"protocol\":\"babel.player.v2\",\"id\":N,\"action\":{\"tokens\":[\"glyph\",...],\"notes\":\"...\"},\"source\":\"scripted\"|\"llm\"|\"fallback\"} for a speaker, or action {\"pick\":0..3,\"notes\":\"...\"} for a listener. Messages have 1 to 8 glyphs from that seat's alphabet; notes are truncated to 600 runes. The game validates actions, maps glyphs to token ids, applies speak/pick, and uses its scripted baseline on missing or invalid replies. Model prompts, calls, and Jev rankings stay in the player container; the game receives no model secret."
       },
       "global": {
         "type": "text",
@@ -214,7 +201,7 @@
     "docs": {
       "readme": {
         "type": "text",
-        "value": "Babel is an emergent-language referential game for four LLM-piloted cogs: every round two speaker/listener pairs, a 16-glyph alphabet that each seat sees under its own symbols and order, a target scene (shape, colour, count) for the speaker, a message of 1-8 glyphs, a four-card lineup for the listener, and a point for both when the pick is right. Feedback every round, private notes fed back verbatim, no words ever. A policy is just a prompt: field one by reusing the published babel-player runnable with the PLAYER_PROMPT environment variable set to your strategy. With no LLM credentials (or for seats that register scripted) the server plays a code-and-decode baseline so episodes always complete."
+        "value": "Babel is a four-player emergent-language game. Each round has two speaker/listener pairs; a speaker sends 1 to 8 glyphs from a private alphabet and a listener chooses one of four scenes. Each player receives only its private task and own feedback, then submits an ordinary action. Scripted, prompt, and Jev policies run in player containers. The game owns visibility, validation, results, and replay and falls back to its code-and-decode baseline on missing or invalid actions."
       },
       "pages": [
         {
@@ -222,7 +209,7 @@
           "title": "rules.md",
           "content": {
             "type": "text",
-            "value": "# Babel rules\n\n- Four seats. Every round the seats split into two pairs, each with a SPEAKER and a LISTENER. Round r (0-based) uses the matching M[r mod 3] of {(0,1),(2,3)}, {(0,2),(1,3)}, {(0,3),(1,2)}; within a pair the first seat speaks when (r div 3) mod 2 == 0, otherwise the second. Every ordered speaker->listener relation occurs once per six rounds.\n- A scene is a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4); scene id = shape*16 + colour*4 + (count-1).\n- Per pair per round the seed draws a target and a lineup of four scenes: the target, a near miss (shares two attributes), a partial (shares one), and a clear miss (shares none), shuffled and labelled A-D. The speaker sees only the target; the listener sees the message and the lineup.\n- The message is 1 to 8 tokens from a 16-token alphabet. Each seat sees the tokens under its own seeded symbols in its own order; glyph identity never survives the channel, only token identity does. Nothing else crosses between seats.\n- After the pick both pair members learn the target, the pick, and the verdict. Each seat's prompt carries its own history (never the other pair's) and its latest private notes (up to 600 characters, overwritten when a reply carries notes, kept when it does not). Notes are recorded in the event log for spectators.\n- The episode runs `rounds` rounds (default 24, capped to 60 by the model-call budget); the episode clock may end it early after the current round.\n\n## Scoring\n\nA round-pair succeeds when the listener picks the target. A seat's `correct` is its successes in the rounds it was in (either role); `score = correct / rounds played`. Results also report `asSpeaker` and `asListener` successes. Fully cooperative; the league ranks seats by mean episode score.\n\n## The meta\n\nEvery decision is made by Claude acting on a per-seat policy prompt plus the seat's alphabet, notes, history, and target (speaker) or message and lineup (listener). Prompts that invent a consistent compositional code (one glyph per attribute value), keep a per-partner dictionary in their notes, and prefer the near-miss reading when unsure tend to score; the built-in scripted baseline (fixed three-token code as speaker, count-based association decoder as listener) fills seats without prompts, is a fieldable policy in its own right, and is the consistent-convention partner a prompt has to adapt to."
+            "value": "# Babel rules\n\n- Four seats. Every round the seats split into two pairs, each with a SPEAKER and a LISTENER. Round r (0-based) uses the matching M[r mod 3] of {(0,1),(2,3)}, {(0,2),(1,3)}, {(0,3),(1,2)}; within a pair the first seat speaks when (r div 3) mod 2 == 0, otherwise the second. Every ordered speaker->listener relation occurs once per six rounds.\n- A scene is a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4); scene id = shape*16 + colour*4 + (count-1).\n- Per pair per round the seed draws a target and a lineup of four scenes: the target, a near miss (shares two attributes), a partial (shares one), and a clear miss (shares none), shuffled and labelled A-D. The speaker sees only the target; the listener sees the message and the lineup.\n- The message is 1 to 8 tokens from a 16-token alphabet. Each seat sees the tokens under its own seeded symbols in its own order; glyph identity never survives the channel, only token identity does. Nothing else crosses between seats.\n- After the pick both pair members learn the target, the pick, and the verdict. Each seat's prompt carries its own history (never the other pair's) and its latest private notes (up to 600 characters, overwritten when a reply carries notes, kept when it does not). Notes are recorded in the event log for spectators.\n- The episode runs `rounds` rounds (default 24, capped to 60 by the model-call budget); the episode clock may end it early after the current round.\n\n## Scoring\n\nA round-pair succeeds when the listener picks the target. A seat's `correct` is its successes in the rounds it was in (either role); `score = correct / rounds played`. Results also report `asSpeaker` and `asListener` successes. Fully cooperative; the league ranks seats by mean episode score.\n\n## The meta\n\nEach player policy receives its own alphabet, notes, feedback, and target (speaker) or message and lineup (listener), then submits an ordinary action to the game. Prompts that invent a consistent compositional code (one glyph per attribute value), keep a per-partner dictionary in their notes, and prefer the near-miss reading when unsure tend to score; the built-in scripted baseline (fixed three-token code as speaker, count-based association decoder as listener) fills seats without prompts, is a fieldable policy in its own right, and is the consistent-convention partner a prompt has to adapt to."
           }
         }
       ]
@@ -233,7 +220,7 @@
       "id": "babel-player",
       "name": "Babel Prompt Player",
       "type": "player",
-      "description": "The reference Babel policy: delivers its PLAYER_PROMPT (or a default compositional-code strategy) to the game and spectates until the final frame. Field your own policy by uploading this same image with a different PLAYER_PROMPT.",
+      "description": "Reference prompt policy: the player calls Claude with its private observation and PLAYER_PROMPT, then submits glyphs or a lineup pick through babel.player.v2.",
       "image": "{{BABEL_IMAGE}}",
       "run": [
         "/bin/babel-player"
@@ -253,13 +240,36 @@
       "id": "babel-coder",
       "name": "Babel Scripted Coder",
       "type": "player",
-      "description": "The scripted code-and-decode baseline as a fieldable policy: registers its seat as rule-based (a fixed shape/colour/count token code as speaker, a count-based association decoder as listener) so the game server plays it deterministically, no LLM involved.",
+      "description": "Scripted code-and-decode policy in the player: fixed shape/colour/count glyph code as speaker, association decoder as listener.",
       "image": "{{BABEL_IMAGE}}",
       "run": [
         "/bin/babel-player"
       ],
       "env": {
         "PLAYER_SCRIPTED": "1"
+      },
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "1"
+        }
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
+    },
+    {
+      "id": "babel-jev",
+      "name": "Babel Jev Player",
+      "type": "player",
+      "description": "Jev ranks legal speaker glyphs and listener scene picks from the player's private babel.player.v2 observation.",
+      "image": "{{BABEL_IMAGE}}",
+      "run": [
+        "/bin/babel-player"
+      ],
+      "env": {
+        "PLAYER_JEV": "1"
       },
       "resources": {
         "requests": {
@@ -324,7 +334,7 @@
     },
     "players": [
       {
-        "player_id": "babel-player"
+        "player_id": "babel-jev"
       },
       {
         "player_id": "babel-coder"

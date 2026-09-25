@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Nim
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/nimby" \
+            https://github.com/treeform/nimby/releases/download/0.1.26/nimby-Linux-X64
+          chmod +x "$HOME/.local/bin/nimby"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/nimby" use 2.2.4
+          "$HOME/.local/bin/nimby" --global sync nimby.lock
+          for pkg in "$HOME"/.nimby/pkgs/*; do
+            if [ -d "$pkg/src" ]; then
+              echo "--path:\"$pkg/src\"" >> nim.cfg
+            else
+              echo "--path:\"$pkg\"" >> nim.cfg
+            fi
+          done
+          echo '--path:"src"' >> nim.cfg
+      - name: Test rules, private views, and player policies
+        run: |
+          set -euo pipefail
+          for test in tests/*.nim; do
+            nim c -r --path:src "$test"
+            nim c -r -d:release --path:src "$test"
+          done
+      - name: Test numeric training bridge
+        run: |
+          set -euo pipefail
+          nim c -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
+          python3 tools/test_train_bridge.py /tmp/babel-train-bridge
+
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Build images and static replay viewer
+        run: uvx --from 'coworld[auth]==0.1.43' coworld build --version 0.1.4
+      - name: Certify bundled Jev, prompt, and scripted seats locally
+        run: uvx --from 'coworld[auth]==0.1.43' coworld certify --timeout-seconds 300 --no-open-report dist/coworld_manifest.json
