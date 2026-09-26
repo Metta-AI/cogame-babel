@@ -1,4 +1,4 @@
-## Babel player: scripted, prompt, or Jev policy over one private decision view.
+## Babel player: scripted or prompt policy over one private decision view.
 ##
 ## To field your own policy, reuse this image and set PLAYER_PROMPT:
 ##   coworld upload-policy <babel-image> --name my-babel \
@@ -6,7 +6,7 @@
 
 import std/[json, options, os, strutils]
 import whisky
-import babel/[jev_policy, llm, player_policy]
+import babel/[llm, player_policy]
 
 const DefaultPrompt = """
 Invent a compositional code and stick to it: one glyph for each shape,
@@ -30,13 +30,12 @@ when isMainModule:
   if prompt.len == 0:
     prompt = DefaultPrompt
   let scripted = getEnv("PLAYER_SCRIPTED").strip() in ["1", "true", "yes"]
-  let jev = getEnv("PLAYER_JEV") == "1"
-  let client = if not scripted and not jev: newLlmClient() else: nil
+  let client = if not scripted: newLlmClient() else: nil
 
   echo "babel player: connecting to game"
   let socket = newWebSocket(url)
   echo "babel player: policy=",
-    (if scripted: "scripted" elif jev: "jev" else: "prompt")
+    (if scripted: "scripted" else: "prompt")
 
   while true:
     let received = socket.receiveMessage()
@@ -56,16 +55,12 @@ when isMainModule:
       var source = "scripted"
       if scripted:
         action = scriptedAction(payload)
-      elif jev and not jevConfigured():
-        action = scriptedAction(payload)
-        source = "fallback"
-      elif not jev and client.disabled:
+      elif client.disabled:
         action = scriptedAction(payload)
         source = "fallback"
       else:
         try:
-          action = if jev: chooseJevAction(payload)
-                   else: promptAction(client, payload, prompt)
+          action = promptAction(client, payload, prompt)
           source = "llm"
         except CatchableError as error:
           echo "babel player: model call failed: ", error.msg
