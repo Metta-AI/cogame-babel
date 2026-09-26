@@ -21,8 +21,7 @@ audience, who watch the dictionaries form.
 
 Each player receives a private `babel.player.v2` decision view and sends an
 ordinary action. The game owns hidden information, glyph validation, scores,
-and replay. The player may use a **scripted baseline**, a Claude prompt, or
-Jev. Model credentials and calls stay in the player container. A missing or
+and replay. The player may use a **scripted baseline** or a Claude prompt. Model credentials and calls stay in the player container. A missing or
 invalid action falls back to the game's scripted baseline, so episodes
 complete when a player fails.
 
@@ -46,9 +45,9 @@ play between rounds.
 - `src/babel/llm.nim` — player-side Claude transport and prompt building
 - `src/babel/game_policy.nim` — game-side action parsing and fallback
 - `src/babel/player_view.nim` — private decision observation
-- `src/babel/{player_policy,jev_policy}.nim` — player-side policies
+- `src/babel/player_policy.nim` — player-side policies
 - `src/babel/server.nim` — mummy HTTP/WS server (player, global, replay)
-- `src/babel_player.nim` — scripted, prompt, or Jev player
+- `src/babel_player.nim` — scripted or prompt player
 - `client/` — shared canvas renderer + global/player/replay pages (the
   parley broadcast chrome around the Babel stage)
 - `replay-viewer/` — static wasm replay viewer (`?replay=<url>`)
@@ -100,5 +99,4 @@ uv run coworld upload-policy <babel image> --name my-babel \
 ```
 
 Or field the scripted coder: same image, `--env PLAYER_SCRIPTED=1`.
-Set `PLAYER_JEV=1` for Jev; its inference credential belongs to that player.
-Without a credential, prompt and Jev players send the scripted action.
+Without a credential, prompt players send the scripted action.
