@@ -14,7 +14,7 @@
     "replay_viewer": {
       "bundle": "static-replay-viewer"
     },
-    "description": "Babel: an emergent-language referential game for four cogs. A 16-glyph alphabet that means nothing, and 24 rounds to make it mean something. Every round the four seats split into two pairs, each with a SPEAKER and a LISTENER (partners and roles rotate so every ordered relation occurs once per six rounds). The speaker sees a target scene - a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4) - and sends a message of 1 to 8 glyphs. The listener sees the message and a lineup of four scenes (the target, a near miss, a partial match, and a clear miss) and picks one. Both score when the pick is right. Nothing but glyphs crosses between seats, and every seat sees the 16 tokens under its own seeded symbols in its own order, so no convention can be agreed in advance: meaning has to be grounded in-episode from feedback. Each seat keeps private notes the game returns every round. Seats play under anonymous cog aliases. Scripted, prompt, and Jev policies choose actions in ordinary player containers; the game owns visibility, legality, results, and replay.",
+    "description": "Babel: an emergent-language referential game for four cogs. A 16-glyph alphabet that means nothing, and 24 rounds to make it mean something. Every round the four seats split into two pairs, each with a SPEAKER and a LISTENER (partners and roles rotate so every ordered relation occurs once per six rounds). The speaker sees a target scene - a shape (circle, square, triangle, star), a colour (red, blue, green, yellow), and a count (1-4) - and sends a message of 1 to 8 glyphs. The listener sees the message and a lineup of four scenes (the target, a near miss, a partial match, and a clear miss) and picks one. Both score when the pick is right. Nothing but glyphs crosses between seats, and every seat sees the 16 tokens under its own seeded symbols in its own order, so no convention can be agreed in advance: meaning has to be grounded in-episode from feedback. Each seat keeps private notes the game returns every round. Seats play under anonymous cog aliases. Scripted and prompt policies choose actions in ordinary player containers; the game owns visibility, legality, results, and replay.",
     "owner": "daveey@gmail.com",
     "runnable": {
       "type": "game",
@@ -191,7 +191,7 @@
     "protocols": {
       "player": {
         "type": "text",
-        "value": "babel.player.v2 uses JSON text frames on COWORLD_PLAYER_WS_URL. The game sends welcome, redacted state, private decision, and final frames. Each decision has a unique id, acting slot, role, partner alias, that seat's 16 visible glyphs, private notes, and completed feedback from only its own pair. A speaker sees target scene id (shape*16+colour*4+count-1), never the lineup. A listener sees its partner's message in its own glyphs and four scene ids, never the target. The player returns {\"type\":\"action\",\"protocol\":\"babel.player.v2\",\"id\":N,\"action\":{\"tokens\":[\"glyph\",...],\"notes\":\"...\"},\"source\":\"scripted\"|\"llm\"|\"fallback\"} for a speaker, or action {\"pick\":0..3,\"notes\":\"...\"} for a listener. Messages have 1 to 8 glyphs from that seat's alphabet; notes are truncated to 600 runes. The game validates actions, maps glyphs to token ids, applies speak/pick, and uses its scripted baseline on missing or invalid replies. Model prompts, calls, and Jev rankings stay in the player container; the game receives no model secret."
+        "value": "babel.player.v2 uses JSON text frames on COWORLD_PLAYER_WS_URL. The game sends welcome, redacted state, private decision, and final frames. Each decision has a unique id, acting slot, role, partner alias, that seat's 16 visible glyphs, private notes, and completed feedback from only its own pair. A speaker sees target scene id (shape*16+colour*4+count-1), never the lineup. A listener sees its partner's message in its own glyphs and four scene ids, never the target. The player returns {\"type\":\"action\",\"protocol\":\"babel.player.v2\",\"id\":N,\"action\":{\"tokens\":[\"glyph\",...],\"notes\":\"...\"},\"source\":\"scripted\"|\"llm\"|\"fallback\"} for a speaker, or action {\"pick\":0..3,\"notes\":\"...\"} for a listener. Messages have 1 to 8 glyphs from that seat's alphabet; notes are truncated to 600 runes. The game validates actions, maps glyphs to token ids, applies speak/pick, and uses its scripted baseline on missing or invalid replies. Model prompts and calls stay in the player container; the game receives no model secret."
       },
       "global": {
         "type": "text",
@@ -201,7 +201,7 @@
     "docs": {
       "readme": {
         "type": "text",
-        "value": "Babel is a four-player emergent-language game. Each round has two speaker/listener pairs; a speaker sends 1 to 8 glyphs from a private alphabet and a listener chooses one of four scenes. Each player receives only its private task and own feedback, then submits an ordinary action. Scripted, prompt, and Jev policies run in player containers. The game owns visibility, validation, results, and replay and falls back to its code-and-decode baseline on missing or invalid actions."
+        "value": "Babel is a four-player emergent-language game. Each round has two speaker/listener pairs; a speaker sends 1 to 8 glyphs from a private alphabet and a listener chooses one of four scenes. Each player receives only its private task and own feedback, then submits an ordinary action. Scripted and prompt policies run in player containers. The game owns visibility, validation, results, and replay and falls back to its code-and-decode baseline on missing or invalid actions."
       },
       "pages": [
         {
@@ -247,29 +247,6 @@
       ],
       "env": {
         "PLAYER_SCRIPTED": "1"
-      },
-      "resources": {
-        "requests": {
-          "cpu": "100m",
-          "memory": "64Mi"
-        },
-        "limits": {
-          "cpu": "1"
-        }
-      },
-      "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
-    },
-    {
-      "id": "babel-jev",
-      "name": "Babel Jev Player",
-      "type": "player",
-      "description": "Jev ranks legal speaker glyphs and listener scene picks from the player's private babel.player.v2 observation.",
-      "image": "{{BABEL_IMAGE}}",
-      "run": [
-        "/bin/babel-player"
-      ],
-      "env": {
-        "PLAYER_JEV": "1"
       },
       "resources": {
         "requests": {
@@ -334,7 +311,7 @@
     },
     "players": [
       {
-        "player_id": "babel-jev"
+        "player_id": "babel-player"
       },
       {
         "player_id": "babel-coder"

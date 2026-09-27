@@ -1,7 +1,7 @@
 # Training on Babel
 
 Babel's hosted player receives a private decision and submits glyph messages
-or lineup picks. Prompt and Jev model calls run inside the player. The
+or lineup picks. Prompt model calls run inside the player. The
 headless simulator also supports numeric Metta RL and native PufferLib
 training through a local bridge. Metta post-training learns from complete
 scripted games.

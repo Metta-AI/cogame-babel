@@ -52,5 +52,5 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Build images and static replay viewer
         run: uvx --from 'coworld[auth]==0.1.43' coworld build --version 0.1.4
-      - name: Certify bundled Jev, prompt, and scripted seats locally
+      - name: Certify bundled prompt and scripted seats locally
         run: uvx --from 'coworld[auth]==0.1.43' coworld certify --timeout-seconds 300 --no-open-report dist/coworld_manifest.json
