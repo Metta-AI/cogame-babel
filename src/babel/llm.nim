@@ -2,7 +2,8 @@
 ## post-training export. The game server does not import this module.
 ##
 ## Credentials, in order of preference:
-##   Bedrock sidecar / bearer token   - hosted pods
+##   COWORLD_LLM_ENDPOINT            - hosted sidecar
+##   Bedrock bearer token            - local play
 ##   ANTHROPIC_API_KEY                - the key itself
 ##   ANTHROPIC_API_KEY_URI            - a URI holding the key
 ## With no credentials, the player sends an immediate scripted action.
@@ -22,13 +23,14 @@ const
 
 type
   LlmTransport = enum
-    ltNone, ltBedrock, ltAnthropic
+    ltNone, ltSidecar, ltBedrock, ltAnthropic
 
   LlmClient* = ref object
     curl: Curly
     transport: LlmTransport
     apiKey: string          ## anthropic transport
-    bedrockEndpoint: string ## bedrock transport: sidecar or public host
+    sidecarEndpoint: string
+    bedrockEndpoint: string ## local Bedrock transport
     bedrockModels: seq[string]  ## candidates, tried in order on denial
     bedrockModel: int           ## index into bedrockModels
     bedrockToken: string
@@ -88,6 +90,13 @@ proc newLlmClient*(): LlmClient =
     timeoutSeconds: getEnv("PLAYER_LLM_TIMEOUT_SECONDS", "30").parseInt(),
     scripted: newScriptedPolicy(0)
   )
+  let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
+  if sidecarEndpoint.len > 0:
+    result.transport = ltSidecar
+    result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
+    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+    result.curl = newCurly()
+    return
   let bedrockEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME").strip()
   let bedrockToken = getEnv("AWS_BEARER_TOKEN_BEDROCK").strip()
   if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
@@ -264,7 +273,7 @@ proc extractJsonObject*(text: string): JsonNode =
       head.replace("\n", " "))
   parseJson(text[start .. stop])
 
-proc completeText*(client: LlmClient, system, user: string): string =
+proc completeText*(client: LlmClient, system, user: string, slot: int): string =
   var body = %*{
     "max_tokens": client.maxOutputTokens,
     "system": system,
@@ -272,12 +281,18 @@ proc completeText*(client: LlmClient, system, user: string): string =
   }
   var headers: HttpHeaders
   headers["content-type"] = "application/json"
+  if client.transport == ltSidecar and slot >= 0:
+    headers["X-Coworld-Player-Slot"] = $slot
   var url: string
   if client.transport == ltBedrock:
     body["anthropic_version"] = %BedrockAnthropicVersion
     if client.bedrockToken.len > 0:
       headers["authorization"] = "Bearer " & client.bedrockToken
     url = client.bedrockUrl()
+  elif client.transport == ltSidecar:
+    body["model"] = %client.model
+    headers["anthropic-version"] = AnthropicVersion
+    url = client.sidecarEndpoint & "/v1/messages"
   else:
     body["model"] = %client.model
     ## Only the Claude 5 / Opus tiers accept an effort setting; Haiku 4.5
@@ -336,7 +351,7 @@ proc decide*(
         (if call.kind == ckSpeak: ", using only glyphs from YOUR ALPHABET."
          else: ", picking one of A, B, C, or D."))
     try:
-      let payload = extractJsonObject(client.completeText(system, user))
+      let payload = extractJsonObject(client.completeText(system, user, call.seat))
       var decision: Decision
       ## Reject illegal replies here so the retry carries the hint.
       var probe = sim

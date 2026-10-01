@@ -100,3 +100,9 @@ uv run coworld upload-policy <babel image> --name my-babel \
 
 Or field the scripted coder: same image, `--env PLAYER_SCRIPTED=1`.
 Without a credential, prompt players send the scripted action.
+
+Hosted prompt players use `COWORLD_LLM_ENDPOINT` and `/v1/messages` with the
+canonical model `anthropic/claude-haiku-4.5`. `COWORLD_LLM_MODEL` selects another
+canonical OpenRouter model. Upload prompt players with the native Coworld CLI's
+`--use-llm` flag so the platform supplies their endpoint; hosted players need no
+provider key.
