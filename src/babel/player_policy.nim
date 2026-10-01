@@ -55,4 +55,4 @@ proc promptAction*(client: LlmClient, view: JsonNode,
       "Send {\"pick\":0..3,\"notes\":\"...\"}."
   let user = "Your private observation:\n" & $view & "\n" &
     "Operator guidance:\n" & operatorPrompt & "\n" & task
-  extractJsonObject(client.completeText(system, user))
+  extractJsonObject(client.completeText(system, user, -1))
