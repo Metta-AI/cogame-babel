@@ -146,3 +146,7 @@ leave sampling fields empty. Authenticated `attempt_started` frames retain exact
 prompt/request evidence when the engine deadline precedes a response. Such timeout
 records have no invented call ID or response and remain ineligible until a trusted
 platform archive join supplies the missing evidence.
+
+Seat notes remain private in observations and trajectories. Spectator frames and
+new public replay events omit them; historical engine/replay readers retain the
+stored note format.

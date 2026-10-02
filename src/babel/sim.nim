@@ -476,7 +476,7 @@ proc tableStateJson*(sim: Sim): JsonNode =
       "asListener": sim.asListener[seat],
       "role": sim.roleOf(seat),
       "partner": sim.partnerOf(seat),
-      "notes": sim.notes[seat]
+      "notes": ""
     })
   var glyphs = newJArray()
   for glyph in sim.glyphs:
@@ -576,6 +576,12 @@ proc eventToJson*(event: GameEvent): JsonNode =
     discard
   if event.text.len > 0:
     result["text"] = %event.text
+
+proc publicEventJson*(event: GameEvent): JsonNode =
+  ## Preserve historical engine events; public speech excludes private notes.
+  result = event.eventToJson()
+  if event.kind in {evSpeak, evPick} and result.hasKey("text"):
+    result.delete("text")
 
 proc eventFromJson*(node: JsonNode): GameEvent =
   result = GameEvent(

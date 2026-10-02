@@ -28,13 +28,13 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
             assert self.headers["X-Coworld-Player-Slot"] in {"0", "1", "2", "3"}
             view = json.loads(request["messages"][0]["content"].split("Your private observation:\n", 1)[1]
                               .split("\nOperator guidance:", 1)[0])
-            action = ({"tokens": [view["alphabet"][0]], "notes": ""}
-                      if view["role"] == "speaker" else {"pick": 0, "notes": ""})
+            action = ({"tokens": [view["alphabet"][0]], "notes": "private-notes-fixture"}
+                      if view["role"] == "speaker" else {"pick": 0, "notes": "private-notes-fixture"})
             text = json.dumps(action)
             if view["slot"] == 0 and failure == "invalid-json":
                 text = "not a JSON action"
             elif view["slot"] == 0 and failure == "illegal-action":
-                text = json.dumps({"tokens": ["outside-alphabet"], "notes": ""})
+                text = json.dumps({"tokens": ["outside-alphabet"], "notes": "private-notes-fixture"})
             call_id = str(uuid.uuid4())
             payload = {"id": "msg_" + call_id, "type": "message", "role": "assistant",
                        "model": "mock/fixture", "content": [{"type": "text", "text": text}],
@@ -176,6 +176,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
             assert recorded_calls <= set(calls)
             assert fallbacks == (2 if failure in {"invalid-json", "illegal-action"} else 1 if failure == "timeout" else 0)
             replay = (output / "replay.json").read_text()
+            assert "private-notes-fixture" not in replay
             assert "private-strategy-fixture" not in replay and "platform_call_id" not in replay
             assert all(identity not in replay for identity in calls)
             assert (output / "trajectory.jsonl").stat().st_mode & 0o777 == 0o600

@@ -78,7 +78,7 @@ proc policyNamesJson(gs: GameState): JsonNode =
 proc snapshotJson(gs: GameState): JsonNode =
   var events = newJArray()
   for event in gs.sim.events:
-    events.add(event.eventToJson())
+    events.add(event.publicEventJson())
   var connected = newJArray()
   for slot in 0 ..< gs.config.tokens.len:
     connected.add(%gs.playerSockets.hasKey(slot))
@@ -159,7 +159,7 @@ proc replayPayload(gs: GameState, results: JsonNode): string =
     names.add(%name)
   var events = newJArray()
   for event in gs.sim.events:
-    events.add(event.eventToJson())
+    events.add(event.publicEventJson())
   let (glyphs, perm) = gs.sim.alphabetConfigJson()
   $ %*{
     "protocol": "babel.replay.v" & $ReplayVersion,
