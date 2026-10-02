@@ -73,7 +73,7 @@ when isMainModule:
           source = "llm"
         except CatchableError as error:
           failure = error.msg
-          echo "babel player: model call failed: ", error.msg
+          echo "babel player: model call failed; using scripted fallback"
           action = scriptedAction(payload)
           source = "fallback"
       if calledModel:

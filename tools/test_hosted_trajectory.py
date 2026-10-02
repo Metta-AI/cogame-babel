@@ -17,7 +17,7 @@ from pathlib import Path
 GAME, PLAYER = (Path(arg).resolve() for arg in sys.argv[1:3])
 ROOT = Path(__file__).resolve().parents[1]
 
-for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "unknown"):
+for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null", "greedy-tokens", "timeout", "unknown"):
     calls = {}
 
     class Messages(http.server.BaseHTTPRequestHandler):
@@ -37,16 +37,17 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
                 text = json.dumps({"tokens": ["outside-alphabet"], "notes": "private-notes-fixture"})
             call_id = str(uuid.uuid4())
             payload = {"id": "msg_" + call_id, "type": "message", "role": "assistant",
-                       "model": "mock/fixture", "content": [{"type": "text", "text": text}],
+                       "model": "mock/served", "content": [{"type": "text", "text": text}],
                        "stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5}}
-            if failure == "sampled":
+            if failure in {"sampled", "greedy-tokens"}:
                 payload["sampling_evidence"] = {
                     "policy_revision": "a" * 64, "tokenizer_revision": "b" * 64,
-                    "chat_template": "fixture-template", "sampling": "full_softmax_temperature_one",
+                    "chat_template": "fixture-template", "sampling": "full_softmax_temperature_one" if failure == "sampled" else "greedy",
                     "enable_thinking": False, "max_new_tokens": request["max_tokens"],
                     "max_sequence_length": 4096, "sampling_seed": 7, "eos_token_ids": [4],
                     "prompt_token_ids": [1, 2], "completion_token_ids": [3, 4],
-                    "behavior_log_probs": [-0.5, -0.3], "stop_reason": "eos", "response": text}
+                    "behavior_log_probs": [-0.5, -0.3] if failure == "sampled" else None, "stop_reason": "eos", "response": text}
+            if failure == "greedy-null": payload["sampling_evidence"] = None
             calls[call_id] = (request, payload)
             if failure == "timeout" and view["slot"] == 0 and view["round"] == 1:
                 time.sleep(2)
@@ -55,7 +56,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Softmax-Llm-Call-Id", call_id)
-            if failure == "sampled":
+            if failure in {"sampled", "greedy-tokens"}:
                 self.send_header("X-Coworld-Checkpoint-Sha256", "a" * 64)
                 self.send_header("X-Coworld-Tokenizer-Sha256", "b" * 64)
                 self.send_header("X-Coworld-Chat-Template-Sha256", "c" * 64)
@@ -154,10 +155,11 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
                 recorded_calls.add(call_id)
                 assert attempt["request"] == request
                 assert json.loads(attempt["raw_response"]) == raw_response
-                if failure == "sampled":
+                assert attempt["model"] == "mock/served"
+                if failure in {"sampled", "greedy-tokens"}:
                     assert attempt["prompt_token_ids"] == [1, 2]
                     assert attempt["sampled_token_ids"] == [3, 4]
-                    assert attempt["behavior_logprobs"] == [-0.5, -0.3]
+                    assert attempt["behavior_logprobs"] == ([-0.5, -0.3] if failure == "sampled" else None)
                     assert attempt["model_identity"] == "a" * 64
                     assert attempt["tokenizer_identity"] == "b" * 64
                     assert attempt["chat_template_sha256"] == "c" * 64
@@ -175,6 +177,9 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "u
             assert len(recorded_calls) == (0 if failure == "unknown" else expected - (1 if failure == "timeout" else 0))
             assert recorded_calls <= set(calls)
             assert fallbacks == (2 if failure in {"invalid-json", "illegal-action"} else 1 if failure == "timeout" else 0)
+            for log in logs: log.flush()
+            public_logs = "".join(path.read_text() for path in output.glob("*.log"))
+            assert "private-strategy-fixture" not in public_logs and "private-notes-fixture" not in public_logs
             replay = (output / "replay.json").read_text()
             assert "private-notes-fixture" not in replay
             assert "private-strategy-fixture" not in replay and "platform_call_id" not in replay

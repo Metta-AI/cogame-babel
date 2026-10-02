@@ -9,7 +9,7 @@
 ## With no credentials, the player sends an immediate scripted action.
 
 import
-  std/[json, options, os, strutils, tables],
+  std/[json, math, options, os, strutils, tables],
   bitworld/runtime, bitworld/decision_trajectory,
   curly,
   game_policy, sim
@@ -104,6 +104,9 @@ proc newLlmClient*(): LlmClient =
     timeoutSeconds: getEnv("PLAYER_LLM_TIMEOUT_SECONDS", "30").parseInt(),
     scripted: newScriptedPolicy(0)
   )
+  if classify(result.temperature) in {fcNan, fcInf, fcNegInf} or
+      result.temperature < 0 or result.temperature > 1:
+    raise newException(ValueError, "COWORLD_LLM_TEMPERATURE must be finite and in 0..1")
   let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
   if sidecarEndpoint.len > 0:
     result.transport = ltSidecar
@@ -359,17 +362,21 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
     raise newException(BabelError, "anthropic error " & $response.code &
       ": " & response.body[0 .. min(response.body.high, 300)])
   let payload = parseJson(response.body)
+  if payload.hasKey("model"):
+    client.lastCall.model = payload["model"].getStr()
   client.lastCall.stopReason = some(payload["stop_reason"].getStr())
-  if payload.hasKey("sampling_evidence"):
+  if payload.hasKey("sampling_evidence") and payload["sampling_evidence"].kind != JNull:
     let sampling = payload["sampling_evidence"]
     var promptIds, sampledIds: seq[int]
     var probabilities: seq[float]
     for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
     for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
-    for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
+    if sampling["behavior_log_probs"].kind != JNull:
+      for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
     client.lastCall.promptTokenIds = some(promptIds)
     client.lastCall.sampledTokenIds = some(sampledIds)
-    client.lastCall.behaviorLogprobs = some(probabilities)
+    if sampling["behavior_log_probs"].kind != JNull:
+      client.lastCall.behaviorLogprobs = some(probabilities)
     client.lastCall.stopReason = some(sampling["stop_reason"].getStr())
     client.lastCall.decoder["sampling_evidence"] = copy(sampling)
   if payload{"stop_reason"}.getStr() == "refusal":
@@ -416,8 +423,7 @@ proc decide*(
         probe.applyPick(call.pair, decision.pick, decision.notes, false)
       return decision
     except CatchableError as error:
-      echo "babel llm: seat ", call.seat, " attempt ", attempt, " failed: ",
-        error.msg
+      echo "babel llm: seat ", call.seat, " attempt ", attempt, " rejected"
       if client.disabled:
         break
   echo "babel llm: seat ", call.seat, " falling back to scripted decision"

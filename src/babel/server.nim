@@ -336,8 +336,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         try:
           playerSocket.send($view)
         except CatchableError as error:
-          echo "babel: could not send decision to seat ", call.seat,
-            ": ", error.msg
+          echo "babel: could not send decision to seat ", call.seat
           hasSocket = false
       var response: JsonNode
       let decisionDeadline = epochTime() + config.decisionTimeoutSeconds.float
@@ -366,7 +365,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             fellBack = true
             rejection = resolution.rejection
             fallbackPolicy = resolution.fallbackOrigin
-            echo "babel: player action rejected (", rejection, "); using scripted fallback"
+            echo "babel: player action rejected; using scripted fallback"
         else:
           decision = fallbackClient.scriptedAction(state.sim, call)
           if call.kind == ckSpeak:
@@ -545,7 +544,7 @@ proc websocketHandler(
           withLock stateLock:
             state.pendingActions[slot] = payload
       except CatchableError as error:
-        echo "babel: ignoring bad player frame: ", error.msg
+        echo "babel: ignoring invalid player frame"
     of ErrorEvent:
       discard
     of CloseEvent:
