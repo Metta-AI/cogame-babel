@@ -11,6 +11,11 @@ type
     pick*: int
     notes*: string
 
+  ActionResolution* = object
+    decision*: Decision
+    accepted*: bool
+    rejection*, fallbackOrigin*: string
+
   ScriptedPolicy* = ref object
     rand: Rand
 
@@ -153,3 +158,99 @@ proc parsePick*(payload: JsonNode): Decision =
   if pick < 0 or pick >= LineupSize:
     raise newException(BabelError, "pick must be A-D: " & $node)
   result.pick = pick
+
+proc actionJson*(sim: Sim, call: Call, decision: Decision): JsonNode =
+  ## Canonical wire action after production parsing and execution.
+  if call.kind == ckSpeak:
+    var glyphs = newJArray()
+    for token in decision.tokens:
+      glyphs.add(%sim.glyphOf(call.seat, token))
+    %*{"tokens": glyphs, "notes": decision.notes}
+  else:
+    %*{"pick": decision.pick, "notes": decision.notes}
+
+proc tokenIndex(alphabet: JsonNode, glyph: string): int =
+  for index in 0 ..< alphabet.len:
+    if alphabet[index].getStr() == glyph:
+      return index
+  raise newException(BabelError, "glyph outside this seat's alphabet")
+
+proc scriptedAction*(view: JsonNode): JsonNode =
+  let alphabet = view["alphabet"]
+  if view["role"].getStr() == "speaker":
+    let scene = sceneOf(view["target"].getInt())
+    return %*{"tokens": [
+      alphabet[scene.shape],
+      alphabet[4 + scene.colour],
+      alphabet[8 + scene.count]
+    ], "notes": ""}
+
+  var associations: array[Tokens, array[12, int]]
+  for round in view["history"]:
+    let scene = sceneOf(round["target"].getInt())
+    for glyph in round["message"]:
+      let token = tokenIndex(alphabet, glyph.getStr())
+      inc associations[token][scene.shape]
+      inc associations[token][4 + scene.colour]
+      inc associations[token][8 + scene.count]
+  var best = int.low
+  var pick = 0
+  for index in 0 ..< view["lineup"].len:
+    let scene = sceneOf(view["lineup"][index].getInt())
+    var score = 0
+    for glyph in view["message"]:
+      let token = tokenIndex(alphabet, glyph.getStr())
+      score += associations[token][scene.shape]
+      score += associations[token][4 + scene.colour]
+      score += associations[token][8 + scene.count]
+    if score > best:
+      best = score
+      pick = index
+  %*{"pick": pick, "notes": ""}
+
+
+proc extractJsonObject*(text: string): JsonNode =
+  ## Pulls the first {...} object out of a model response, tolerating fences.
+  let start = text.find('{')
+  let stop = text.rfind('}')
+  if start < 0 or stop <= start:
+    ## Quote the head of the reply so a hosted log shows WHAT the model
+    ## sent instead of JSON (prose, a refusal, a cut-off analysis...).
+    var head = text.strip()
+    if head.len > 160:
+      head = head[0 ..< 160] & "..."
+    raise newException(BabelError, "no JSON object in response: " &
+      head.replace("\n", " "))
+  parseJson(text[start .. stop])
+
+
+proc resolveAction*(sim: var Sim, call: Call, rawResponse: string,
+    privateView: JsonNode, scripted: bool, fallbackPolicy: ScriptedPolicy): ActionResolution =
+  ## The existing player/server rejection flow, shared with the language bridge.
+  var payload: JsonNode
+  result.accepted = true
+  try:
+    payload = extractJsonObject(rawResponse)
+  except CatchableError as error:
+    result.accepted = false
+    result.rejection = error.msg
+    result.fallbackOrigin = "player-scripted-parse"
+    payload = scriptedAction(privateView)
+  try:
+    result.decision = if call.kind == ckSpeak:
+      sim.parseSpeak(call.seat, payload) else: parsePick(payload)
+    if call.kind == ckSpeak:
+      sim.applySpeak(call.pair, result.decision.tokens, result.decision.notes,
+        scripted or not result.accepted)
+    else:
+      sim.applyPick(call.pair, result.decision.pick, result.decision.notes,
+        scripted or not result.accepted)
+  except BabelError as error:
+    result.accepted = false
+    result.rejection = error.msg
+    result.fallbackOrigin = "game-scripted-invalid-action"
+    result.decision = fallbackPolicy.scriptedAction(sim, call)
+    if call.kind == ckSpeak:
+      sim.applySpeak(call.pair, result.decision.tokens, result.decision.notes, true)
+    else:
+      sim.applyPick(call.pair, result.decision.pick, result.decision.notes, true)

@@ -19,8 +19,9 @@
 ##   player -> game: {"type":"action","id":N,"action":{...}}
 
 import
-  std/[json, locks, os, sets, strutils, tables, times],
+  std/[json, locks, options, os, sets, strutils, tables, times],
   bitworld/runtime,
+  bitworld/decision_trajectory,
   curly,
   mummy,
   mummy/routers,
@@ -36,11 +37,13 @@ type
     config: GameConfig
     sim: Sim
     pendingActions: Table[int, JsonNode]
+    pendingAttempts: Table[int, JsonNode]
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
     globalSockets: HashSet[WebSocket]
     started: bool
     finished: bool
+    trajectory: Option[DecisionTrajectory]
 
 var
   stateLock: Lock
@@ -75,7 +78,7 @@ proc policyNamesJson(gs: GameState): JsonNode =
 proc snapshotJson(gs: GameState): JsonNode =
   var events = newJArray()
   for event in gs.sim.events:
-    events.add(event.eventToJson())
+    events.add(event.publicEventJson())
   var connected = newJArray()
   for slot in 0 ..< gs.config.tokens.len:
     connected.add(%gs.playerSockets.hasKey(slot))
@@ -156,7 +159,7 @@ proc replayPayload(gs: GameState, results: JsonNode): string =
     names.add(%name)
   var events = newJArray()
   for event in gs.sim.events:
-    events.add(event.eventToJson())
+    events.add(event.publicEventJson())
   let (glyphs, perm) = gs.sim.alphabetConfigJson()
   $ %*{
     "protocol": "babel.replay.v" & $ReplayVersion,
@@ -214,6 +217,14 @@ proc finishEpisode(runtimeConfig: RuntimeConfig) =
     state.broadcastLocked()
 
   sleep(500)
+  if state.trajectory.isSome:
+    let trajectory = state.trajectory.get()
+    var outcomes = newJObject()
+    for seat in 0 ..< Seats:
+      outcomes[$seat] = results["scores"][seat]
+    trajectory.finish(if results["reason"].getStr() == "complete": esCompleted else: esTruncated,
+      results, outcomes)
+    trajectory.writeEventsToUri(getEnv(CogameSaveTrajectoryUriEnv))
   echo "babel: writing results and replay"
   writeArtifact(
     runtimeConfig.resultsUri, $results, "application/json",
@@ -317,6 +328,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         hasSocket = state.playerSockets.hasKey(call.seat)
         if hasSocket:
           playerSocket = state.playerSockets[call.seat]
+        state.pendingAttempts.del(call.seat)
         state.pendingActions.del(call.seat)
 
       let view = simCopy.decisionView(call)
@@ -324,8 +336,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         try:
           playerSocket.send($view)
         except CatchableError as error:
-          echo "babel: could not send decision to seat ", call.seat,
-            ": ", error.msg
+          echo "babel: could not send decision to seat ", call.seat
           hasSocket = false
       var response: JsonNode
       let decisionDeadline = epochTime() + config.decisionTimeoutSeconds.float
@@ -342,41 +353,63 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         sleep(10)
 
       var decision: Decision
-      var scripted = true
-      if response != nil:
-        try:
-          let action = response["action"]
-          if call.kind == ckSpeak:
-            decision = parseSpeak(simCopy, call.seat, action)
-          else:
-            decision = parsePick(action)
-          scripted = response{"source"}.getStr() != "llm"
-        except CatchableError as error:
-          echo "babel: player action rejected (", error.msg,
-            "); using scripted fallback"
-          decision = fallbackClient.scriptedAction(simCopy, call)
-      else:
-        decision = fallbackClient.scriptedAction(simCopy, call)
-
+      var fellBack = response == nil or response{"source"}.getStr() == "fallback"
+      var rejection = ""
+      var fallbackPolicy = if response == nil: "game-scripted" else: "player-scripted"
       withLock stateLock:
-        echo "babel: round ", state.sim.round + 1, " pair ", call.pair, " ",
+        if response != nil:
+          let resolution = state.sim.resolveAction(call, $response["action"], view,
+            response{"source"}.getStr() != "llm", fallbackClient)
+          decision = resolution.decision
+          if not resolution.accepted:
+            fellBack = true
+            rejection = resolution.rejection
+            fallbackPolicy = resolution.fallbackOrigin
+            echo "babel: player action rejected; using scripted fallback"
+        else:
+          decision = fallbackClient.scriptedAction(state.sim, call)
+          if call.kind == ckSpeak:
+            state.sim.applySpeak(call.pair, decision.tokens, decision.notes, true)
+          else:
+            state.sim.applyPick(call.pair, decision.pick, decision.notes, true)
+        echo "babel: round ", simCopy.round + 1, " pair ", call.pair, " ",
           decisionText(state.sim, call, decision), " at ",
           (epochTime() - gameStart).int, "s"
-        try:
-          if call.kind == ckSpeak:
-            state.sim.applySpeak(call.pair, decision.tokens, decision.notes,
-              scripted)
-          else:
-            state.sim.applyPick(call.pair, decision.pick, decision.notes,
-              scripted)
-        except BabelError as error:
-          echo "babel: player action rejected (", error.msg,
-            "); using scripted fallback"
-          let fallback = fallbackClient.scriptedAction(state.sim, call)
-          if call.kind == ckSpeak:
-            state.sim.applySpeak(call.pair, fallback.tokens, "", true)
-          else:
-            state.sim.applyPick(call.pair, fallback.pick, "", true)
+        if state.trajectory.isSome:
+          let actualAction = state.sim.actionJson(call, decision)
+          var attempts: seq[DecisionAttempt]
+          var selected = none(string)
+          var privateEvidence = newJNull()
+          if response != nil and response.hasKey("training_attempt") and
+              response["training_attempt"].kind == JObject:
+            privateEvidence = response["training_attempt"]
+          elif state.pendingAttempts.hasKey(call.seat) and
+              state.pendingAttempts[call.seat]["id"] == view["id"]:
+            privateEvidence = state.pendingAttempts[call.seat]["training_attempt"]
+          if privateEvidence.kind == JObject:
+            var attempt = readAttemptEvidence(privateEvidence)
+            attempt.accepted = not fellBack
+            attempt.parsedAction = if fellBack: newJNull() else: actualAction
+            if rejection.len > 0:
+              attempt.rejectionReason = some(rejection)
+            elif response == nil:
+              attempt.rejectionReason = some("game decision timeout before player response")
+            attempts.add(attempt)
+            if not fellBack:
+              selected = some(attempt.attemptId)
+          elif not fellBack:
+            let attemptId = "babel-" & $view["id"].getInt() & "-external"
+            var external = newDecisionAttempt(attemptId, "external-babel", aoUnknown)
+            external.response = response["action"]
+            external.parsedAction = actualAction
+            external.accepted = true
+            attempts.add(external)
+            selected = some(attemptId)
+          state.trajectory.get().recordDecision("babel-" & $view["id"].getInt(),
+            $call.seat, view, attempts, selected, actualAction,
+            if fellBack: asFallback else: asAccepted, terminal = state.sim.done,
+            fallbackOrigin = (if fellBack: some(fallbackPolicy)
+              else: none(string)))
         state.broadcastLocked()
 
       ## Pace between rounds: after the pick that closes a round.
@@ -503,11 +536,15 @@ proc websocketHandler(
         return
       try:
         let payload = parseJson(message.data)
-        if payload{"type"}.getStr() == "action":
+        if payload{"type"}.getStr() == "attempt_started":
+          discard readAttemptEvidence(payload["training_attempt"])
+          withLock stateLock:
+            state.pendingAttempts[slot] = payload
+        elif payload{"type"}.getStr() == "action":
           withLock stateLock:
             state.pendingActions[slot] = payload
       except CatchableError as error:
-        echo "babel: ignoring bad player frame: ", error.msg
+        echo "babel: ignoring invalid player frame"
     of ErrorEvent:
       discard
     of CloseEvent:
@@ -572,7 +609,12 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
     raise newException(BabelError, "tokens and players must align")
   state.config = config
   state.sim = initSim(config)
+  if getEnv(CogameSaveTrajectoryUriEnv).len > 0:
+    state.trajectory = some(newDecisionTrajectory(getEnv("COWORLD_EPISODE_ID"),
+      "babel-" & $config.seed, "babel", getEnv("COWORLD_GAME_VERSION"),
+      getEnv("COWORLD_SOURCE_REVISION")))
   state.pendingActions.clear()
+  state.pendingAttempts.clear()
   runtimeConfigGlobal = runtimeConfig
 
   let router = buildRouter(replayMode = false)

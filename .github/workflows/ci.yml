@@ -38,11 +38,18 @@ jobs:
             nim c -r --path:src "$test"
             nim c -r -d:release --path:src "$test"
           done
-      - name: Test numeric training bridge
+      - name: Test numeric and production language training bridge
         run: |
           set -euo pipefail
           nim c -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/babel-train-bridge
+
+      - name: Verify real private trajectory capture and fallback attribution
+        run: |
+          set -euo pipefail
+          nim c -d:release --path:src -o:/tmp/babel-game src/babel.nim
+          nim c -d:release --path:src -o:/tmp/babel-player src/babel_player.nim
+          python3 tools/test_hosted_trajectory.py /tmp/babel-game /tmp/babel-player
 
   certify:
     runs-on: ubuntu-latest
@@ -51,6 +58,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - name: Build images and static replay viewer
-        run: uvx --from 'coworld[auth]==0.1.43' coworld build --version 0.1.4
+        run: uvx --from 'coworld[auth]==0.1.56' coworld build --version 0.1.4
       - name: Certify bundled prompt and scripted seats locally
-        run: uvx --from 'coworld[auth]==0.1.43' coworld certify --timeout-seconds 300 --no-open-report dist/coworld_manifest.json
+        run: uvx --from 'coworld[auth]==0.1.56' coworld certify --timeout-seconds 300 --no-open-report dist/coworld_manifest.json
