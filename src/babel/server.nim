@@ -356,10 +356,18 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       var fellBack = response == nil or response{"source"}.getStr() == "fallback"
       var rejection = ""
       var fallbackPolicy = if response == nil: "game-scripted" else: "player-scripted"
+      var proposedAction = newJNull()
       withLock stateLock:
         if response != nil:
+          var modelResponse = none(string)
+          if response.hasKey("training_attempt") and response["training_attempt"].kind == JObject:
+            let evidence = readAttemptEvidence(response["training_attempt"])
+            if evidence.origin == aoModel:
+              modelResponse = some(if evidence.response.kind == JString:
+                evidence.response.getStr() else: "")
           let resolution = state.sim.resolveAction(call, $response["action"], view,
-            response{"source"}.getStr() != "llm", fallbackClient)
+            response{"source"}.getStr() != "llm", fallbackClient, modelResponse)
+          proposedAction = resolution.proposedAction
           decision = resolution.decision
           if not resolution.accepted:
             fellBack = true
@@ -388,8 +396,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             privateEvidence = state.pendingAttempts[call.seat]["training_attempt"]
           if privateEvidence.kind == JObject:
             var attempt = readAttemptEvidence(privateEvidence)
+            if attempt.origin in {aoTeacher, aoHuman}: attempt.origin = aoUnknown
             attempt.accepted = not fellBack
-            attempt.parsedAction = if fellBack: newJNull() else: actualAction
+            attempt.parsedAction = proposedAction
             if rejection.len > 0:
               attempt.rejectionReason = some(rejection)
             elif response == nil:
@@ -541,6 +550,8 @@ proc websocketHandler(
           withLock stateLock:
             state.pendingAttempts[slot] = payload
         elif payload{"type"}.getStr() == "action":
+          if payload.hasKey("training_attempt"):
+            discard readAttemptEvidence(payload["training_attempt"])
           withLock stateLock:
             state.pendingActions[slot] = payload
       except CatchableError as error:
