@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-def play(binary: Path, teacher: bool, language: bool) -> None:
+def play(binary: Path, teacher: bool, language: bool, invalid: str | None = None) -> None:
     manifest = Path(__file__).resolve().parent.parent / "coworld_manifest_template.json"
     process = subprocess.Popen(
         [str(binary), str(manifest), *(["--language"] if language else [])],
@@ -30,6 +30,14 @@ def play(binary: Path, teacher: bool, language: bool) -> None:
         decisions = 0
         notes = {}
         while observation["kind"] == "decision":
+            assert observation["inference_mode"] == ("text_action" if language else None)
+            if invalid is not None and decisions == 0:
+                rejected = request({"kind": "step", "decision_id": observation["decision_id"], "response": invalid})
+                assert rejected["kind"] == "consumed_rejection" and rejected["reason"]
+                assert all(glyph in observation["semantic_view"]["alphabet"] for glyph in rejected["action"]["tokens"])
+                observation = rejected["observation"]
+                decisions += 1
+                continue
             encoding = request({"kind": "encode"})
             assert encoding["decision_id"] == observation["decision_id"]
             widths.add(len(encoding["values"]))
@@ -87,3 +95,5 @@ if __name__ == "__main__":
     for language in (False, True):
         for teacher in (True, False):
             play(binary, teacher, language)
+    play(binary, True, True, "not a JSON action")
+    play(binary, True, True, json.dumps({"tokens": ["outside-alphabet"]}))

@@ -6,6 +6,7 @@
 
 import std/[json, options, os, strutils]
 import whisky
+import bitworld/decision_trajectory
 import babel/[llm, player_policy]
 
 const DefaultPrompt = """
@@ -53,22 +54,36 @@ when isMainModule:
     of "decision":
       var action: JsonNode
       var source = "scripted"
+      var attempt = newJNull()
+      var failure = ""
+      var calledModel = false
       if scripted:
         action = scriptedAction(payload)
       elif client.disabled:
         action = scriptedAction(payload)
         source = "fallback"
       else:
+        calledModel = true
+        client.beforeCall = proc(evidence: LlmCallEvidence) =
+          socket.send($(%*{"type": "attempt_started", "id": payload["id"],
+            "training_attempt": evidence.privateAttempt("babel-" &
+              $payload["id"].getInt() & "-model").attemptEvidenceJson()}))
         try:
           action = promptAction(client, payload, prompt)
           source = "llm"
         except CatchableError as error:
+          failure = error.msg
           echo "babel player: model call failed: ", error.msg
           action = scriptedAction(payload)
           source = "fallback"
+      if calledModel:
+        let evidence = client.lastCall
+        attempt = evidence.privateAttempt("babel-" & $payload["id"].getInt() &
+          "-model", failure).attemptEvidenceJson()
       socket.send($(%*{
         "type": "action", "protocol": "babel.player.v2",
-        "id": payload["id"], "action": action, "source": source
+        "id": payload["id"], "action": action, "source": source,
+        "training_attempt": attempt
       }))
     of "final":
       echo "babel player: final scores ", payload["scores"]

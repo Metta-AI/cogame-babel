@@ -28,7 +28,7 @@ proc heads(): JsonNode =
     picks.add(%pick)
   result.add(%*{"name": "pick", "choices": picks})
 
-proc decision(game: Sim, id: int, language: bool): JsonNode =
+proc decision(game: Sim, id: int, language: bool, operatorPrompt: string): JsonNode =
   let call = game.currentCall()
   let speaker = call.kind == ckSpeak
   let view = game.decisionView(call)
@@ -52,11 +52,12 @@ proc decision(game: Sim, id: int, language: bool): JsonNode =
     "kind": "decision", "game": "babel", "decision_id": id,
     "seat": call.seat, "engine_seat": call.seat, "turn": game.round,
     "semantic_view": view, "inbox": [],
-    "messages": promptMessages(view, OperatorPrompt),
+    "messages": promptMessages(view, operatorPrompt),
     "speech_messages": [],
     "action_schema": {"type": "object", "properties": properties,
       "required": required},
-    "typed_question": newJNull()
+    "typed_question": newJNull(),
+    "inference_mode": (if language: %"text_action" else: newJNull())
   }
 
 proc encoding(game: Sim, id: int): JsonNode =
@@ -101,14 +102,9 @@ proc encoding(game: Sim, id: int): JsonNode =
 
 proc teacherAction(game: Sim, client: LlmClient, language: bool): JsonNode =
   let call = game.currentCall()
-  let baseline = client.scriptedAction(game, call)
   if language:
-    if call.kind == ckSpeak:
-      var glyphs = newJArray()
-      for token in baseline.tokens:
-        glyphs.add(%game.glyphOf(call.seat, token))
-      return %*{"tokens": glyphs, "notes": baseline.notes}
-    return %*{"pick": baseline.pick, "notes": baseline.notes}
+    return scriptedAction(game.decisionView(call))
+  let baseline = client.scriptedAction(game, call)
   result = %*{"length": (if call.kind == ckSpeak: baseline.tokens.len else: 1),
     "pick": (if call.kind == ckPick: baseline.pick else: 0)}
   for index in 0 ..< MaxMessage:
@@ -117,14 +113,16 @@ proc teacherAction(game: Sim, client: LlmClient, language: bool): JsonNode =
 
 when isMainModule:
   let args = commandLineParams()
-  if args.len notin 1 .. 2 or (args.len == 2 and args[1] != "--language"):
-    quit("usage: babel-train-bridge MANIFEST [--language]", 1)
-  let language = args.len == 2
+  if args.len notin 1 .. 3 or (args.len >= 2 and args[1] != "--language"):
+    quit("usage: babel-train-bridge MANIFEST [--language [OPERATOR_PROMPT]]", 1)
+  let language = args.len >= 2
+  let operatorPrompt = if args.len == 3: args[2] else: OperatorPrompt
   let manifest = parseFile(args[0])
   let variant = manifest["variants"][0]
   doAssert variant["id"].getStr() == "standard"
   var game: Sim
   var client: LlmClient
+  var fallbackPolicy: ScriptedPolicy
   var id = 0
   while not stdin.endOfFile:
     let request = parseJson(stdin.readLine())
@@ -142,8 +140,9 @@ when isMainModule:
       game = initSim(config)
       game.beginRound()
       client = newScriptedClient(seed)
+      fallbackPolicy = newScriptedPolicy(seed)
       id = 0
-      response = game.decision(id, language)
+      response = game.decision(id, language, operatorPrompt)
     of "encode":
       doAssert not game.done
       response = game.encoding(id)
@@ -152,25 +151,30 @@ when isMainModule:
       response = %*{"response": $game.teacherAction(client, language)}
     of "step":
       doAssert not game.done and request["decision_id"].getInt() == id
-      let action = parseJson(request["response"].getStr())
       let call = game.currentCall()
-      var payload = action
-      if not language:
+      var action: JsonNode
+      var rejection = ""
+      if language:
+        let resolution = game.resolveAction(call, request["response"].getStr(),
+          game.decisionView(call), false, fallbackPolicy)
+        action = game.actionJson(call, resolution.decision)
+        rejection = resolution.rejection
+      else:
+        action = parseJson(request["response"].getStr())
         for head in heads():
           doAssert action[head["name"].getStr()] in head["choices"]
+        var payload: JsonNode
         if call.kind == ckSpeak:
           var glyphs = newJArray()
           for index in 0 ..< action["length"].getInt():
             glyphs.add(%game.glyphOf(call.seat, action["token" & $index].getInt()))
           payload = %*{"tokens": glyphs, "notes": ""}
+          let parsed = game.parseSpeak(call.seat, payload)
+          game.applySpeak(call.pair, parsed.tokens, parsed.notes, false)
         else:
           payload = %*{"pick": lineupLetter(action["pick"].getInt()), "notes": ""}
-      if call.kind == ckSpeak:
-        let parsed = game.parseSpeak(call.seat, payload)
-        game.applySpeak(call.pair, parsed.tokens, parsed.notes, false)
-      else:
-        let parsed = parsePick(payload)
-        game.applyPick(call.pair, parsed.pick, parsed.notes, false)
+          let parsed = parsePick(payload)
+          game.applyPick(call.pair, parsed.pick, parsed.notes, false)
       inc id
       if game.done:
         var scores = newJObject()
@@ -182,7 +186,10 @@ when isMainModule:
         if game.currentCall().kind == ckRound:
           game.beginRound()
         response = %*{"kind": "accepted", "action": action,
-          "observation": game.decision(id, language)}
+          "observation": game.decision(id, language, operatorPrompt)}
+      if rejection.len > 0:
+        response["kind"] = %"consumed_rejection"
+        response["reason"] = %rejection
     else:
       raise newException(ValueError, "unknown command: " & request["kind"].getStr())
     stdout.writeLine($response)

@@ -9,8 +9,8 @@
 ## With no credentials, the player sends an immediate scripted action.
 
 import
-  std/[json, os, strutils, tables],
-  bitworld/runtime,
+  std/[json, options, os, strutils, tables],
+  bitworld/runtime, bitworld/decision_trajectory,
   curly,
   game_policy, sim
 
@@ -26,7 +26,18 @@ type
   LlmTransport = enum
     ltNone, ltSidecar, ltBedrock, ltAnthropic
 
+  LlmCallEvidence* = object
+    prompt*, request*, rawResponse*: JsonNode
+    response*, model*: string
+    platformCallId*: Option[string]
+    decoder*: JsonNode
+    modelIdentity*, tokenizerIdentity*, chatTemplateSha256*, stopReason*: Option[string]
+    promptTokenIds*, sampledTokenIds*: Option[seq[int]]
+    behaviorLogprobs*: Option[seq[float]]
+
   LlmClient* = ref object
+    lastCall*: LlmCallEvidence
+    beforeCall*: proc(evidence: LlmCallEvidence) {.closure.}
     curl: Curly
     transport: LlmTransport
     apiKey: string          ## anthropic transport
@@ -36,6 +47,7 @@ type
     bedrockModel: int           ## index into bedrockModels
     bedrockToken: string
     model: string
+    temperature: float
     maxOutputTokens: int
     timeoutSeconds: int
     disabled*: bool    ## true once credentials are known-unavailable
@@ -87,6 +99,7 @@ proc bedrockUrl(client: LlmClient): string =
 proc newLlmClient*(): LlmClient =
   result = LlmClient(
     model: getEnv("PLAYER_MODEL", "claude-sonnet-5"),
+    temperature: getEnv("COWORLD_LLM_TEMPERATURE", "1").parseFloat(),
     maxOutputTokens: getEnv("PLAYER_MAX_OUTPUT_TOKENS", "900").parseInt(),
     timeoutSeconds: getEnv("PLAYER_LLM_TIMEOUT_SECONDS", "30").parseInt(),
     scripted: newScriptedPolicy(0)
@@ -260,23 +273,26 @@ proc listenerPrompt*(sim: Sim, pair: int, prompt: string): string =
 
 # ---- Anthropic / Bedrock transport ------------------------------------------
 
-proc extractJsonObject*(text: string): JsonNode =
-  ## Pulls the first {...} object out of a model response, tolerating fences.
-  let start = text.find('{')
-  let stop = text.rfind('}')
-  if start < 0 or stop <= start:
-    ## Quote the head of the reply so a hosted log shows WHAT the model
-    ## sent instead of JSON (prose, a refusal, a cut-off analysis...).
-    var head = text.strip()
-    if head.len > 160:
-      head = head[0 ..< 160] & "..."
-    raise newException(BabelError, "no JSON object in response: " &
-      head.replace("\n", " "))
-  parseJson(text[start .. stop])
+proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
+    failure = ""): DecisionAttempt =
+  DecisionAttempt(attemptId: attemptId, policy: "babel-prompt", origin: aoModel,
+    model: some(evidence.model), prompt: evidence.prompt, request: evidence.request,
+    response: %evidence.response, rawResponse: evidence.rawResponse, decoder: evidence.decoder,
+    platformCallId: evidence.platformCallId,
+    rejectionReason: (if failure.len > 0: some(failure) else: none(string)),
+    modelIdentity: evidence.modelIdentity, tokenizerIdentity: evidence.tokenizerIdentity,
+    chatTemplateSha256: evidence.chatTemplateSha256, stopReason: evidence.stopReason,
+    promptTokenIds: evidence.promptTokenIds, sampledTokenIds: evidence.sampledTokenIds,
+    behaviorLogprobs: evidence.behaviorLogprobs)
 
 proc completeText*(client: LlmClient, system, user: string, slot: int): string =
+  client.lastCall = LlmCallEvidence(
+    prompt: %*[{"role": "system", "content": system}, {"role": "user", "content": user}],
+    request: newJNull(), rawResponse: newJNull(),
+    model: client.model, decoder: %*{"max_tokens": client.maxOutputTokens, "temperature": client.temperature})
   var body = %*{
     "max_tokens": client.maxOutputTokens,
+    "temperature": client.temperature,
     "system": system,
     "messages": [{"role": "user", "content": user}]
   }
@@ -303,7 +319,22 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
     headers["x-api-key"] = client.apiKey
     headers["anthropic-version"] = AnthropicVersion
     url = AnthropicUrl
+  client.lastCall.request = copy(body)
+  if client.transport == ltBedrock:
+    client.lastCall.model = client.bedrockModels[client.bedrockModel]
+  if client.beforeCall != nil:
+    client.beforeCall(client.lastCall)
   let response = client.curl.post(url, headers, $body, client.timeoutSeconds)
+  client.lastCall.rawResponse = %response.body
+  if response.headers.contains("X-Softmax-Llm-Call-Id"):
+    client.lastCall.platformCallId = some(response.headers["X-Softmax-Llm-Call-Id"])
+  for header in ["X-Coworld-Checkpoint-Sha256", "X-Coworld-Tokenizer-Sha256",
+      "X-Coworld-Chat-Template-Sha256"]:
+    if response.headers.contains(header):
+      case header
+      of "X-Coworld-Checkpoint-Sha256": client.lastCall.modelIdentity = some(response.headers[header])
+      of "X-Coworld-Tokenizer-Sha256": client.lastCall.tokenizerIdentity = some(response.headers[header])
+      else: client.lastCall.chatTemplateSha256 = some(response.headers[header])
   if response.code == 401 or response.code == 403:
     let detail = response.body[0 .. min(response.body.high, 400)]
     if "Model access is denied" in response.body and
@@ -321,11 +352,25 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
     raise newException(BabelError, "anthropic error " & $response.code &
       ": " & response.body[0 .. min(response.body.high, 300)])
   let payload = parseJson(response.body)
+  client.lastCall.stopReason = some(payload["stop_reason"].getStr())
+  if payload.hasKey("sampling_evidence"):
+    let sampling = payload["sampling_evidence"]
+    var promptIds, sampledIds: seq[int]
+    var probabilities: seq[float]
+    for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
+    for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
+    for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
+    client.lastCall.promptTokenIds = some(promptIds)
+    client.lastCall.sampledTokenIds = some(sampledIds)
+    client.lastCall.behaviorLogprobs = some(probabilities)
+    client.lastCall.stopReason = some(sampling["stop_reason"].getStr())
+    client.lastCall.decoder["sampling_evidence"] = copy(sampling)
   if payload{"stop_reason"}.getStr() == "refusal":
     raise newException(BabelError, "anthropic refusal")
   for contentBlock in payload["content"]:
     if contentBlock{"type"}.getStr() == "text":
       result.add(contentBlock{"text"}.getStr())
+  client.lastCall.response = result
   if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
     raise newException(BabelError, "reply cut off at max_tokens before " &
       "any JSON: " & result[0 .. min(result.high, 160)].replace("\n", " "))
