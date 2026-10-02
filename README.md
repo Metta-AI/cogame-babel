@@ -106,3 +106,24 @@ canonical model `anthropic/claude-haiku-4.5`. `COWORLD_LLM_MODEL` selects anothe
 canonical OpenRouter model. Upload prompt players with the native Coworld CLI's
 `--use-llm` flag so the platform supplies their endpoint; hosted players need no
 provider key.
+
+### Language training bridge
+
+`tools/train_bridge.nim MANIFEST --language` exposes the production speaker
+glyph action and listener 0–3 action. It uses the same private prompt renderer,
+response parsers, notes updates, and rules as ordinary players. Both the bridge and exporter render `player_policy.promptMessages` over the
+ordinary `decisionView`, rather than the older game-internal prompts. The default
+operator prompt matches `tools/export_posttrain.nim`. Without `--language`, the
+numeric codec remains a separate research interface; numeric actions also pass
+through the production parser before execution. `tools/test_train_bridge.py`
+plays complete teacher and random episodes in both modes and checks private
+views and carried notes. This bridge test does not qualify published-image or
+hosted-checkpoint parity.
+
+`tools/export_posttrain.nim OUTPUT EPISODES FIRST_SEED GAME_VERSION` also writes
+private `trajectories.jsonl` decision and terminal events for the shared Coworld
+exporter. Supply the exact game version being evaluated. Each accepted scripted
+label has teacher origin, exact private prompt/response, selected-attempt and
+executed-action linkage, source revision, and the complete engine outcome.
+The export directory is owner-only; these files must not be bundled into public
+replays. Episodes split by seed, never by individual decision.

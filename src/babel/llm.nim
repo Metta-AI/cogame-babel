@@ -17,6 +17,7 @@ import
 export game_policy
 
 const
+  TrainingOperatorPrompt* = "Build a shared glyph code from feedback."
   AnthropicUrl = "https://api.anthropic.com/v1/messages"
   AnthropicVersion = "2023-06-01"
   BedrockAnthropicVersion = "bedrock-2023-05-31"

@@ -38,7 +38,7 @@ jobs:
             nim c -r --path:src "$test"
             nim c -r -d:release --path:src "$test"
           done
-      - name: Test numeric training bridge
+      - name: Test numeric and production language training bridge
         run: |
           set -euo pipefail
           nim c -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim

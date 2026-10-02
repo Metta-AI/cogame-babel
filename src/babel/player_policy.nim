@@ -42,8 +42,7 @@ proc scriptedAction*(view: JsonNode): JsonNode =
       pick = index
   %*{"pick": pick, "notes": ""}
 
-proc promptAction*(client: LlmClient, view: JsonNode,
-    operatorPrompt: string): JsonNode =
+proc promptMessages*(view: JsonNode, operatorPrompt: string): JsonNode =
   let system = "You play Babel. Each speaker sends 1 to 8 glyphs from its " &
     "private alphabet. Each listener picks one of four scenes. Partners see " &
     "the same tokens under different glyphs. Learn a convention from your " &
@@ -55,4 +54,13 @@ proc promptAction*(client: LlmClient, view: JsonNode,
       "Send {\"pick\":0..3,\"notes\":\"...\"}."
   let user = "Your private observation:\n" & $view & "\n" &
     "Operator guidance:\n" & operatorPrompt & "\n" & task
-  extractJsonObject(client.completeText(system, user, -1))
+  %*[
+    {"role": "system", "content": system},
+    {"role": "user", "content": user}
+  ]
+
+proc promptAction*(client: LlmClient, view: JsonNode,
+    operatorPrompt: string): JsonNode =
+  let messages = promptMessages(view, operatorPrompt)
+  extractJsonObject(client.completeText(messages[0]["content"].getStr(),
+    messages[1]["content"].getStr(), view["slot"].getInt()))
