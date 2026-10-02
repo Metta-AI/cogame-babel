@@ -400,9 +400,11 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
               selected = some(attempt.attemptId)
           elif not fellBack:
             let attemptId = "babel-" & $view["id"].getInt() & "-external"
-            attempts.add(DecisionAttempt(attemptId: attemptId, policy: "external-babel",
-              origin: aoUnknown, response: response["action"],
-              parsedAction: actualAction, accepted: true))
+            var external = newDecisionAttempt(attemptId, "external-babel", aoUnknown)
+            external.response = response["action"]
+            external.parsedAction = actualAction
+            external.accepted = true
+            attempts.add(external)
             selected = some(attemptId)
           state.trajectory.get().recordDecision("babel-" & $view["id"].getInt(),
             $call.seat, view, attempts, selected, actualAction,

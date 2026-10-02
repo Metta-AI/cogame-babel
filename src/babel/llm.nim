@@ -275,15 +275,22 @@ proc listenerPrompt*(sim: Sim, pair: int, prompt: string): string =
 
 proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
     failure = ""): DecisionAttempt =
-  DecisionAttempt(attemptId: attemptId, policy: "babel-prompt", origin: aoModel,
-    model: some(evidence.model), prompt: evidence.prompt, request: evidence.request,
-    response: %evidence.response, rawResponse: evidence.rawResponse, decoder: evidence.decoder,
-    platformCallId: evidence.platformCallId,
-    rejectionReason: (if failure.len > 0: some(failure) else: none(string)),
-    modelIdentity: evidence.modelIdentity, tokenizerIdentity: evidence.tokenizerIdentity,
-    chatTemplateSha256: evidence.chatTemplateSha256, stopReason: evidence.stopReason,
-    promptTokenIds: evidence.promptTokenIds, sampledTokenIds: evidence.sampledTokenIds,
-    behaviorLogprobs: evidence.behaviorLogprobs)
+  result = newDecisionAttempt(attemptId, "babel-prompt", aoModel)
+  result.model = some(evidence.model)
+  result.prompt = evidence.prompt
+  result.request = evidence.request
+  result.response = %evidence.response
+  result.rawResponse = evidence.rawResponse
+  result.decoder = evidence.decoder
+  result.platformCallId = evidence.platformCallId
+  result.rejectionReason = if failure.len > 0: some(failure) else: none(string)
+  result.modelIdentity = evidence.modelIdentity
+  result.tokenizerIdentity = evidence.tokenizerIdentity
+  result.chatTemplateSha256 = evidence.chatTemplateSha256
+  result.stopReason = evidence.stopReason
+  result.promptTokenIds = evidence.promptTokenIds
+  result.sampledTokenIds = evidence.sampledTokenIds
+  result.behaviorLogprobs = evidence.behaviorLogprobs
 
 proc completeText*(client: LlmClient, system, user: string, slot: int): string =
   client.lastCall = LlmCallEvidence(

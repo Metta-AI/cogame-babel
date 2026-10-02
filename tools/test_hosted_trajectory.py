@@ -17,7 +17,7 @@ from pathlib import Path
 GAME, PLAYER = (Path(arg).resolve() for arg in sys.argv[1:3])
 ROOT = Path(__file__).resolve().parents[1]
 
-for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout"):
+for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout", "unknown"):
     calls = {}
 
     class Messages(http.server.BaseHTTPRequestHandler):
@@ -112,7 +112,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout"):
                 player_env = {**env, "COWORLD_PLAYER_WS_URL": f"ws://127.0.0.1:{port}/player?slot={seat}&token=t{seat}",
                               "COWORLD_LLM_ENDPOINT": f"http://127.0.0.1:{provider.server_port}",
                               "COWORLD_LLM_MODEL": "mock/fixture", "COWORLD_LLM_TEMPERATURE": "1" if failure == "sampled" else "0",
-                              "PLAYER_PROMPT": "private-strategy-fixture", "PLAYER_SCRIPTED": ""}
+                              "PLAYER_PROMPT": "private-strategy-fixture", "PLAYER_SCRIPTED": "1" if failure == "unknown" else ""}
                 player_log = (output / f"player-{seat}.log").open("w")
                 logs.append(player_log)
                 processes.append(subprocess.Popen([str(PLAYER)], cwd=ROOT, env=player_env,
@@ -128,7 +128,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout"):
             assert len(decisions) == expected and episode["status"] == "completed"
             assert episode["outcome"]["reason"] == "complete"
             assert episode["source_revision"] == source
-            assert len(calls) == expected
+            assert len(calls) == (0 if failure == "unknown" else expected)
             recorded_calls = set()
             fallbacks = 0
             for decision in decisions:
@@ -136,6 +136,12 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout"):
                 assert decision["observation"]["slot"] == int(decision["seat"])
                 attempt, = decision["attempts"]
                 call_id = attempt["platform_call_id"]
+                if failure == "unknown":
+                    assert attempt["origin"] == "unknown" and call_id is None
+                    assert attempt["prompt"] is None and attempt["raw_response"] is None
+                    assert attempt["decoder"] is None and attempt["request"] is None
+                    assert attempt["accepted"] and attempt["parsed_action"] == decision["executed_action"]
+                    continue
                 if failure == "timeout" and int(decision["seat"]) == 0 and decision["observation"]["round"] == 1:
                     assert call_id is None and attempt["raw_response"] is None
                     assert attempt["request"]["messages"] and attempt["prompt"]
@@ -166,7 +172,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "timeout"):
                     assert decision["action_status"] == "fallback"
                     assert not attempt["accepted"] and decision["selected_attempt_id"] is None
                     assert decision["fallback_origin"] and attempt["rejection_reason"]
-            assert len(recorded_calls) == expected - (1 if failure == "timeout" else 0)
+            assert len(recorded_calls) == (0 if failure == "unknown" else expected - (1 if failure == "timeout" else 0))
             assert recorded_calls <= set(calls)
             assert fallbacks == (2 if failure in {"invalid-json", "illegal-action"} else 1 if failure == "timeout" else 0)
             replay = (output / "replay.json").read_text()

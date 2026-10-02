@@ -5,8 +5,6 @@ import std/[json, options, os, osproc, strutils]
 import bitworld/decision_trajectory
 import babel/[sim, llm, player_view, player_policy]
 
-
-
 when isMainModule:
   let args = commandLineParams()
   if args.len notin 4 .. 5:
@@ -59,14 +57,18 @@ when isMainModule:
         let episodeId = "babel-" & $seed
         let attemptId = episodeId & "-" & $decisionId & "-teacher"
         let actualAction = sim.actionJson(call, decision)
+        var teacher = newDecisionAttempt(attemptId, "scripted-babel", aoTeacher)
+        teacher.response = %($completion)
+        teacher.rawResponse = %($completion)
+        teacher.prompt = prompt
+        teacher.request = %*{"teacher": "scripted-babel", "seed": seed, "observation": view}
+        teacher.model = some("scripted-babel")
+        teacher.modelIdentity = some(sourceRevision)
+        teacher.decoder = %*{"method": "deterministic"}
+        teacher.parsedAction = actualAction
+        teacher.accepted = true
         trajectory.recordDecision(episodeId & "-" & $decisionId, $call.seat, view,
-          @[DecisionAttempt(attemptId: attemptId, policy: "scripted-babel",
-            origin: aoTeacher, response: %($completion), rawResponse: %($completion),
-            prompt: prompt, request: %*{"teacher": "scripted-babel", "seed": seed,
-              "observation": view}, model: some("scripted-babel"),
-            modelIdentity: some(sourceRevision), decoder: %*{"method": "deterministic"},
-            parsedAction: actualAction, accepted: true)], some(attemptId), actualAction,
-          asAccepted, terminal = sim.done)
+          @[teacher], some(attemptId), actualAction, asAccepted, terminal = sim.done)
         let row = %*{
           "episode_id": "babel-" & $seed,
           "seed": "babel-" & $seed,
