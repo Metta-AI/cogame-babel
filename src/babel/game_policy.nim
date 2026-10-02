@@ -1,6 +1,6 @@
 ## Game-owned action parsing and scripted fallback. No model transport.
 
-import std/[json, random, strutils, tables, unicode]
+import std/[json, options, random, strutils, tables, unicode]
 import sim
 
 const MaxNotesLen* = 600
@@ -13,6 +13,7 @@ type
 
   ActionResolution* = object
     decision*: Decision
+    proposedAction*: JsonNode
     accepted*: bool
     rejection*, fallbackOrigin*: string
 
@@ -225,10 +226,12 @@ proc extractJsonObject*(text: string): JsonNode =
 
 
 proc resolveAction*(sim: var Sim, call: Call, rawResponse: string,
-    privateView: JsonNode, scripted: bool, fallbackPolicy: ScriptedPolicy): ActionResolution =
+    privateView: JsonNode, scripted: bool, fallbackPolicy: ScriptedPolicy,
+    modelResponse = none(string)): ActionResolution =
   ## The existing player/server rejection flow, shared with the language bridge.
   var payload: JsonNode
   result.accepted = true
+  result.proposedAction = newJNull()
   try:
     payload = extractJsonObject(rawResponse)
   except CatchableError as error:
@@ -237,8 +240,18 @@ proc resolveAction*(sim: var Sim, call: Call, rawResponse: string,
     result.fallbackOrigin = "player-scripted-parse"
     payload = scriptedAction(privateView)
   try:
+    if modelResponse.isSome:
+      let sampled = extractJsonObject(modelResponse.get())
+      let sampledDecision = if call.kind == ckSpeak:
+        sim.parseSpeak(call.seat, sampled) else: parsePick(sampled)
+      result.proposedAction = sim.actionJson(call, sampledDecision)
     result.decision = if call.kind == ckSpeak:
       sim.parseSpeak(call.seat, payload) else: parsePick(payload)
+    if modelResponse.isSome:
+      if result.proposedAction != sim.actionJson(call, result.decision):
+        raise newException(BabelError, "model response differs from player action")
+    elif result.accepted:
+      result.proposedAction = sim.actionJson(call, result.decision)
     if call.kind == ckSpeak:
       sim.applySpeak(call.pair, result.decision.tokens, result.decision.notes,
         scripted or not result.accepted)
