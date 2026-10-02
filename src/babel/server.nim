@@ -550,7 +550,7 @@ proc websocketHandler(
           withLock stateLock:
             state.pendingAttempts[slot] = payload
         elif payload{"type"}.getStr() == "action":
-          if payload.hasKey("training_attempt"):
+          if payload.hasKey("training_attempt") and payload["training_attempt"].kind != JNull:
             discard readAttemptEvidence(payload["training_attempt"])
           withLock stateLock:
             state.pendingActions[slot] = payload
