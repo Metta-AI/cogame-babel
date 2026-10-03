@@ -554,7 +554,7 @@ proc playerUpgradeHandler(request: Request) {.gcsafe.} =
       request.respond(401)
       return
     withLock stateLock:
-      if state.stopping or state.finished:
+      if state.started or state.stopping or state.finished or slot in state.registeredSlots:
         request.respond(409)
         return
       let websocket = request.upgradeToWebSocket()
@@ -724,7 +724,8 @@ proc websocketHandler(
       withLock stateLock:
         if websocket in state.socketSlots:
           let slot = state.socketSlots[websocket]
-          state.socketSlots.del(websocket)
+          # Parallel callbacks may dispatch an already-received final frame after close.
+          # Keep its authenticated owner binding until this episode seals.
           if state.playerSockets.getOrDefault(slot) == websocket:
             state.playerSockets.del(slot)
         state.globalSockets.excl(websocket)

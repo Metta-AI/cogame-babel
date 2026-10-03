@@ -1,0 +1,42 @@
+## Callback ordering regression: close cannot discard queued private HTTP facts.
+include ../src/babel/server
+import std/[base64, unittest]
+
+suite "private external owner lifecycle":
+  test "close before queued stop retains facts without acknowledgement credit":
+    state = GameState()
+    let socket = default(WebSocket)
+    let id = "babel-fixture"
+    state.socketSlots[socket] = 0
+    state.playerSockets[0] = socket
+    state.registeredSlots.incl(0)
+    state.decisionSeats[id] = 0
+    state.decisionIssuedAt[id] = getMonoTime() - initDuration(seconds = 1)
+    state.latestDecisions[0] = id
+    var started = newDecisionAttempt(id & "-model", "fixture", aoModel)
+    started.prompt = %*["private fixture"]
+    started.request = %*{"fixture": true}
+    started.decoder = %*{"temperature": 0}
+    state.pendingAttempts[id] = started.attemptEvidenceJson()
+    var received = started
+    received.responseBodyB64 = some(encode("\xffprivate partial bytes"))
+    received.responseHeadersB64 = some(encode("HTTP/1.1 200 OK\r\n\r\n"))
+    received.responseComplete = some(false)
+    received.responseReaderJoined = some(true)
+    received.httpStatus = some(200)
+    websocketHandler(socket, CloseEvent, Message())
+    check not state.playerSockets.hasKey(0)
+    check state.socketSlots[socket] == 0
+    let stopped = %*{"type": "stopped", "decision_id": id,
+      "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
+    websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
+    check state.completedAttempts[id] == received.attemptEvidenceJson()
+    check 0 notin state.stoppedSlots
+    check 0 in state.registeredSlots
+    # An already-sealed episode rejects further frames, even with retained attribution.
+    state.finished = true
+    received.responseBodyB64 = some(encode("different bytes"))
+    let late = %*{"type": "stopped", "decision_id": id,
+      "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
+    websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $late))
+    check state.completedAttempts[id] == stopped["attempts"][0]
