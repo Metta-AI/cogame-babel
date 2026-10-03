@@ -19,11 +19,16 @@ be grounded in-episode from the feedback after each round. Every seat
 keeps private notes the server feeds back verbatim — and records for the
 audience, who watch the dictionaries form.
 
-Each player receives a private `babel.player.v2` decision view and sends an
-ordinary action. The game owns hidden information, glyph validation, scores,
-and replay. The player may use a **scripted baseline** or a Claude prompt. Model credentials and calls stay in the player container. A missing or
-invalid action falls back to the game's scripted baseline, so episodes
-complete when a player fails.
+Each player receives the canonical private `babel.player.v2` observation inside
+a `babel.player.v3` transport envelope and sends an ordinary action.
+Decision identifiers are strings; transport budgets stay outside the observation.
+The player owns one native HTTP worker and acknowledges stop only after joining it.
+The game stages private evidence until bounded acknowledgements, then writes
+private traces before results and replay under one absolute cleanup deadline.
+The game owns hidden information, glyph validation, scores, and replay.
+The player uses a **scripted baseline** or the native LLM sidecar.
+Missing or invalid actions use the game's scripted fallback.
+Unresolved worker shutdown seals a private truncated episode without results or replay.
 
 Seats play under **anonymous cog names** (Sprocket, Gizmo, …): policy
 display names never reach the agents' prompts, so nobody can meta-game
@@ -99,7 +104,7 @@ uv run coworld upload-policy <babel image> --name my-babel \
 ```
 
 Or field the scripted coder: same image, `--env PLAYER_SCRIPTED=1`.
-Without a credential, prompt players send the scripted action.
+Without a native endpoint, prompt players send an unsupervised scripted fallback.
 
 Hosted prompt players use `COWORLD_LLM_ENDPOINT` and `/v1/messages` with the
 canonical model `anthropic/claude-haiku-4.5`. `COWORLD_LLM_MODEL` selects another
@@ -120,13 +125,13 @@ plays complete teacher and random episodes in both modes and checks private
 views and carried notes. This bridge test does not qualify published-image or
 hosted-checkpoint parity.
 
-`tools/export_posttrain.nim OUTPUT EPISODES FIRST_SEED GAME_VERSION [OPERATOR_PROMPT]` also writes
+`tools/export_posttrain.nim OUTPUT EPISODES FIRST_SEED GAME_VERSION [OPERATOR_PROMPT]` writes only
 private `trajectories.jsonl` decision and terminal events for the shared Coworld
 exporter. Supply the exact game version being evaluated. Each accepted scripted
 label has teacher origin, exact private prompt/response, selected-attempt and
 executed-action linkage, source revision, and the complete engine outcome.
 The export directory is owner-only; these files must not be bundled into public
-replays. Episodes split by seed, never by individual decision.
+replays. The shared importer creates seed-family splits after independent corpus review; the game exporter creates no labels or splits.
 
 Private hosted trajectories use `COGAME_SAVE_TRAJECTORY_URI`, separate from
 replay. Enabling capture requires `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`,

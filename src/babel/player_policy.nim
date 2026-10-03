@@ -1,6 +1,6 @@
 ## Scripted and prompt policies over Babel's ordinary private decision view.
 
-import std/json
+import std/[json, monotimes]
 import llm
 
 proc promptMessages*(view: JsonNode, operatorPrompt: string): JsonNode =
@@ -21,7 +21,7 @@ proc promptMessages*(view: JsonNode, operatorPrompt: string): JsonNode =
   ]
 
 proc promptAction*(client: LlmClient, view: JsonNode,
-    operatorPrompt: string): JsonNode =
+    operatorPrompt: string, deadline: MonoTime): JsonNode =
   let messages = promptMessages(view, operatorPrompt)
   extractJsonObject(client.completeText(messages[0]["content"].getStr(),
-    messages[1]["content"].getStr(), view["slot"].getInt()))
+    messages[1]["content"].getStr(), view["slot"].getInt(), deadline))

@@ -11,37 +11,61 @@
 ##   WS  /global                     - spectator snapshots
 ##   WS  /replay                     - replay payload (replay mode)
 ##
-## Player protocol (babel.player.v2), all JSON text frames:
+## Player transport (babel.player.v3), all JSON text frames.
+## The unchanged canonical private observation uses babel.player.v2:
 ##   game -> player: {"type":"welcome","slot":N,"name":...}
 ##                   {"type":"decision",...} with one private task
 ##                   {"type":"state",...} after every event
 ##                   {"type":"final","scores":[...],"correct":[...]}
-##   player -> game: {"type":"action","id":N,"action":{...}}
+##   player -> game: {"type":"action","decision_id":"babel-N","action":{...}}
+##   stop/stopped frames acknowledge joined player-owned inference before sealing.
+##   Budgets live in the transport envelope, outside canonical observations.
 
 import
-  std/[json, locks, options, os, sets, strutils, tables, times],
+  std/[base64, json, locks, math, monotimes, options, os, sets, strutils, sysrand, tables, times],
   bitworld/runtime,
-  bitworld/decision_trajectory,
-  curly,
+  bitworld/[artifact_runtime, decision_trajectory, native_stop],
   mummy,
   mummy/routers,
   game_policy,
   player_view,
+  player_policy,
   sim
 
 const
   ReplayVersion = 1
 
 type
+  StagedDecision = object
+    id, seat: string
+    observation, executedAction: JsonNode
+    attempts: seq[DecisionAttempt]
+    selected: Option[string]
+    status: ActionStatus
+    fallbackOrigin: Option[string]
+    terminal: bool
   GameState = object
     config: GameConfig
     sim: Sim
-    pendingActions: Table[int, JsonNode]
-    pendingAttempts: Table[int, JsonNode]
+    pendingActions: Table[string, tuple[payload: JsonNode, receivedAt: MonoTime]]
+    pendingAttempts: Table[string, JsonNode]
+    completedAttempts: Table[string, JsonNode]
+    decisionSeats: Table[string, int]
+    decisionIssuedAt: Table[string, MonoTime]
+    decisionObservations: Table[string, JsonNode]
+    latestDecisions: Table[int, string]
+    stoppedSlots: HashSet[int]
+    registeredSlots: HashSet[int]
+    staged: seq[StagedDecision]
+    episodeDeadline: MonoTime
+    episodeTimeoutSeconds: float
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
     globalSockets: HashSet[WebSocket]
     started: bool
+    stopping: bool
+    stopId: string
+    stopIssuedAt, acknowledgementDeadline: MonoTime
     finished: bool
     trajectory: Option[DecisionTrajectory]
 
@@ -123,21 +147,14 @@ proc broadcastLocked(gs: GameState) =
   for slot, socket in gs.playerSockets:
     socket.send($gs.playerStateJson(slot))
 
-proc writeArtifact(uri, data, contentType, methodEnv: string) =
-  ## Writes a Coworld artifact, honoring the platform's PUT/POST method hint.
-  if uri.len == 0:
-    return
-  let httpMethod = getEnv(methodEnv, "PUT").toUpperAscii()
-  if uri.isHttpCogameUri() and httpMethod == "POST":
-    let curl = newCurly()
-    var headers: HttpHeaders
-    headers["content-type"] = contentType
-    let response = curl.post(uri, headers, data, 60)
-    if response.code < 200 or response.code >= 300:
-      raise newException(IOError,
-        "artifact POST failed: " & $response.code)
-  else:
-    writeCogameUri(uri, data, contentType, methodEnv)
+proc writeArtifact(uri, data, contentType, methodEnv: string, deadline: MonoTime) =
+  if uri.len == 0: return
+  let methodName = getEnv(methodEnv, "PUT").toUpperAscii()
+  let httpMethod = case methodName
+    of "PUT": ahPut
+    of "POST": ahPost
+    else: raise newException(ValueError, "artifact method must be PUT or POST")
+  writeCogameArtifact(uri, data, contentType, methodEnv, deadline, httpMethod)
 
 proc alphabetConfigJson(sim: Sim): (JsonNode, JsonNode) =
   ## The alphabet and per-seat views are derivable from the seed; they ride
@@ -182,61 +199,93 @@ proc statesFromEvents(config: GameConfig, events: seq[GameEvent]): JsonNode =
   for frame in replayMatch(config, events):
     result.add(frame.tableStateJson())
 
-proc finishEpisode(runtimeConfig: RuntimeConfig) =
+proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
+  ## One owner seals after bounded stop acknowledgements; no remote join is assumed.
+  let cleanupDeadline = min(state.episodeDeadline, getMonoTime() + initDuration(seconds = 5))
+  var targets: seq[int]
+  withLock stateLock:
+    if state.finished: return
+    state.stopping = true
+    var stopToken: array[16, byte]
+    doAssert urandom(stopToken), "OS entropy unavailable for stop identity"
+    for value in stopToken: state.stopId.add(value.toHex(2))
+    state.stopIssuedAt = getMonoTime()
+    state.acknowledgementDeadline = cleanupDeadline - initDuration(seconds = 1)
+    for slot in state.registeredSlots:
+      targets.add(slot)
+      if not state.playerSockets.hasKey(slot): continue
+      let socket = state.playerSockets[slot]
+      let id = if state.latestDecisions.hasKey(slot): %state.latestDecisions[slot] else: newJNull()
+      socket.send($(%*{"type": "stop", "decision_id": id, "stop_id": state.stopId,
+        "reason": (if interruptionRequested(): "interrupted" elif status == esCompleted: "terminal" else: "episode_deadline"),
+        "cleanup_budget_ms": max(0, (state.acknowledgementDeadline - getMonoTime()).inMilliseconds)}))
+  let acknowledgementDeadline = cleanupDeadline - initDuration(seconds = 1)
+  while getMonoTime() < acknowledgementDeadline:
+    var acknowledged = true
+    withLock stateLock:
+      for slot in targets:
+        if slot notin state.stoppedSlots: acknowledged = false
+    if acknowledged: break
+    sleep(10)
+
   var results: JsonNode
   var replayData: string
+  var finalStatus = status
+  var allAcknowledged = true
   withLock stateLock:
-    if state.finished:
-      return
     state.finished = true
     results = state.sim.resultsJson()
+    var cleanup = newJObject()
+    for slot in targets:
+      cleanup[$slot] = %(if slot in state.stoppedSlots: "acknowledged" else: "unresolved")
+      if slot notin state.stoppedSlots:
+        finalStatus = esTruncated
+        allAcknowledged = false
+    let privateOutcome = copy(results)
+    privateOutcome["player_cleanup"] = cleanup
     replayData = state.replayPayload(results)
-
-    ## Send final frames to players BEFORE writing artifacts: the hosted
-    ## worker tears player pods down as soon as results.json exists, and
-    ## writing first would race player log collection.
-    ## Results carry POLICY names for the platform, but the final frame
-    ## goes to the player sockets — hand them the table aliases instead.
-    var aliasNames = newJArray()
-    for name in state.sim.names:
-      aliasNames.add(%name)
-    var final = %*{
-      "type": "final",
-      "done": true,
-      "scores": results["scores"],
-      "correct": results["correct"],
-      "asSpeaker": results["asSpeaker"],
-      "asListener": results["asListener"],
-      "names": aliasNames,
-      "rounds": results["rounds"],
-      "reason": results["reason"]
-    }
-    for slot, socket in state.playerSockets:
-      final["slot"] = %slot
-      socket.send($final)
-    state.broadcastLocked()
-
-  sleep(500)
+    if state.trajectory.isSome:
+      for staged in state.staged:
+        var attempts = staged.attempts
+        # Accepted evidence is frozen at engine selection. Later messages cannot rewrite it.
+        if staged.selected.isNone and state.completedAttempts.hasKey(staged.id):
+          var received = readAttemptEvidence(state.completedAttempts[staged.id])
+          if received.origin in {aoTeacher, aoHuman}: received.origin = aoUnknown
+          if attempts.len > 0:
+            received.accepted = attempts[0].accepted
+            received.parsedAction = attempts[0].parsedAction
+            received.rejectionReason = attempts[0].rejectionReason
+          else:
+            received.rejectionReason = some("late native evidence after engine decision")
+          attempts = @[received]
+        state.trajectory.get().recordDecision(staged.id, staged.seat, staged.observation,
+          attempts, staged.selected, staged.executedAction, staged.status,
+          terminal = staged.terminal, fallbackOrigin = staged.fallbackOrigin)
+      var outcomes = newJObject()
+      for seat in 0 ..< Seats: outcomes[$seat] = results["scores"][seat]
+      if interruptionRequested(): finalStatus = esTruncated
+      state.trajectory.get().finish(finalStatus, privateOutcome,
+        if finalStatus != esCompleted: newJNull() else: outcomes)
+    var names = newJArray()
+    for name in state.sim.names: names.add(%name)
+    let final = %*{"type": "final", "done": true, "scores": results["scores"],
+      "correct": results["correct"], "asSpeaker": results["asSpeaker"],
+      "asListener": results["asListener"], "names": names,
+      "rounds": results["rounds"], "reason": results["reason"]}
+    if allAcknowledged and not interruptionRequested() and status != esFailed:
+      for slot, socket in state.playerSockets: socket.send($final)
+      state.broadcastLocked()
   if state.trajectory.isSome:
-    let trajectory = state.trajectory.get()
-    var outcomes = newJObject()
-    for seat in 0 ..< Seats:
-      outcomes[$seat] = results["scores"][seat]
-    trajectory.finish(if results["reason"].getStr() == "complete": esCompleted else: esTruncated,
-      results, outcomes)
-    trajectory.writeEventsToUri(getEnv(CogameSaveTrajectoryUriEnv))
-  echo "babel: writing results and replay"
-  writeArtifact(
-    runtimeConfig.resultsUri, $results, "application/json",
-    "COGAME_RESULTS_METHOD"
-  )
-  writeArtifact(
-    runtimeConfig.replayUri, replayData, "application/octet-stream",
-    "COGAME_SAVE_REPLAY_METHOD"
-  )
-  sleep(500)
-  echo "babel: episode complete, shutting down"
-  quit(0)
+    let methodName = getEnv("COGAME_SAVE_TRAJECTORY_METHOD", "PUT")
+    let httpMethod = case methodName
+      of "PUT": ahPut
+      of "POST": ahPost
+      else: raise newException(ValueError, "trajectory method must be PUT or POST")
+    state.trajectory.get().writeTrajectoryArtifact(getEnv(CogameSaveTrajectoryUriEnv), cleanupDeadline, httpMethod)
+  if not interruptionRequested() and status != esFailed and allAcknowledged:
+    writeArtifact(runtimeConfig.resultsUri, $results, "application/json", "COGAME_RESULTS_METHOD", cleanupDeadline)
+    writeArtifact(runtimeConfig.replayUri, replayData, "application/octet-stream", "COGAME_SAVE_REPLAY_METHOD", cleanupDeadline)
+    if getMonoTime() + initDuration(milliseconds = 500) < cleanupDeadline: sleep(500)
 
 const PlayBudgetFraction* = 0.6
   ## Share of the platform's episode timeout spent playing. The rest covers
@@ -257,10 +306,20 @@ proc decisionText(sim: Sim, call: Call, decision: Decision): string =
 proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
     let config = state.config
-    let gameStart = epochTime()
-    let deadline = gameStart + config.playerConnectTimeoutSeconds
+    let gameStart = getMonoTime()
+    var ownerStatus = esFailed
+    defer:
+      gameServer.close()
+    defer:
+      finishEpisode(runtimeConfig, ownerStatus)
+    # Player connection waits share the play budget; cleanup retains its remainder.
+    let timeoutSeconds = state.episodeTimeoutSeconds
+    let playDeadline = min(state.episodeDeadline, gameStart + initDuration(milliseconds =
+      int64(timeoutSeconds * PlayBudgetFraction * 1000)))
+    let deadline = min(playDeadline, gameStart + initDuration(nanoseconds =
+      int64(config.playerConnectTimeoutSeconds * 1_000_000_000)))
 
-    while epochTime() < deadline:
+    while getMonoTime() < deadline and not interruptionRequested():
       var allConnected = false
       withLock stateLock:
         allConnected = state.playerSockets.len >= config.tokens.len
@@ -276,28 +335,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
 
     let fallbackClient = newScriptedPolicy(config.seed)
 
-    ## The platform kills the episode at its timeout and keeps nothing.
-    ## Play inside a fraction of it so results and the replay are written
-    ## with room to spare. The hosted dispatcher hands the timeout only to
-    ## its own worker sidecar, NOT to the game container, so when the env
-    ## is silent assume the configured platform default rather than
-    ## playing open-ended.
-    let hostedTimeout = getEnv("COWORLD_TIMEOUT_SECONDS", "").strip()
-    var timeoutSeconds =
-      if hostedTimeout.len > 0:
-        try: parseFloat(hostedTimeout) except ValueError: 0.0
-      else: 0.0
-    if timeoutSeconds <= 0.0:
-      timeoutSeconds = config.episodeTimeoutSeconds.float
-    let playDeadline =
-      if timeoutSeconds > 0.0: gameStart + timeoutSeconds * PlayBudgetFraction
-      else: 0.0
-    if playDeadline > 0.0:
-      echo "babel: episode timeout ", timeoutSeconds.int, "s (",
-        (if hostedTimeout.len > 0: "from env" else: "assumed"),
-        "); playing until ", (timeoutSeconds * PlayBudgetFraction).int, "s"
-
-    while true:
+    while not interruptionRequested():
       var simCopy: Sim
       var call: Call
       var playerSocket: WebSocket
@@ -307,7 +345,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         if state.sim.done:
           break
         call = state.sim.currentCall()
-        pastDeadline = playDeadline > 0.0 and epochTime() > playDeadline
+        pastDeadline = timeoutSeconds > 0.0 and getMonoTime() > playDeadline
         if call.kind == ckRound:
           if pastDeadline:
             ## The platform kills an episode that outruns its timeout and
@@ -321,37 +359,59 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             break
           state.sim.beginRound()
           echo "babel: round ", state.sim.round + 1, " of ", config.rounds,
-            " at ", (epochTime() - gameStart).int, "s"
+            " at ", (getMonoTime() - gameStart).inSeconds, "s"
           state.broadcastLocked()
           continue
         simCopy = state.sim
         hasSocket = state.playerSockets.hasKey(call.seat)
         if hasSocket:
           playerSocket = state.playerSockets[call.seat]
-        state.pendingAttempts.del(call.seat)
-        state.pendingActions.del(call.seat)
 
       let view = simCopy.decisionView(call)
+      let decisionId = "babel-" & $view["id"].getInt()
+      let decisionDeadline = min(playDeadline, getMonoTime() + initDuration(nanoseconds = int64(config.decisionTimeoutSeconds * 1_000_000_000)))
       if hasSocket and not pastDeadline:
+        withLock stateLock:
+          state.decisionSeats[decisionId] = call.seat
+          state.decisionIssuedAt[decisionId] = getMonoTime()
+          state.decisionObservations[decisionId] = copy(view)
+          state.latestDecisions[call.seat] = decisionId
         try:
-          playerSocket.send($view)
+          playerSocket.send($(%*{"type": "decision", "decision_id": decisionId,
+            "observation": view, "transport": {
+              "budget_ms": max(1, (decisionDeadline - getMonoTime()).inMilliseconds),
+              "cleanup_budget_ms": 5000}}))
         except CatchableError as error:
           echo "babel: could not send decision to seat ", call.seat
           hasSocket = false
       var response: JsonNode
-      let decisionDeadline = epochTime() + config.decisionTimeoutSeconds.float
-      while hasSocket and not pastDeadline and
-          epochTime() < decisionDeadline:
+      var lateResponse: JsonNode
+      while hasSocket and not pastDeadline and not interruptionRequested():
         withLock stateLock:
-          if state.pendingActions.hasKey(call.seat):
-            let candidate = state.pendingActions[call.seat]
-            state.pendingActions.del(call.seat)
-            if candidate{"id"}.getInt(-1) == view["id"].getInt():
-              response = candidate
-        if response != nil:
+          if state.pendingActions.hasKey(decisionId):
+            let candidate = state.pendingActions[decisionId]
+            state.pendingActions.del(decisionId)
+            if candidate.payload["decision_id"].getStr() == decisionId:
+              if candidate.receivedAt <= decisionDeadline:
+                response = candidate.payload
+              else:
+                lateResponse = candidate.payload
+        if response != nil or lateResponse != nil or getMonoTime() >= decisionDeadline:
           break
         sleep(10)
 
+      if interruptionRequested():
+        withLock stateLock:
+          var attempts: seq[DecisionAttempt]
+          if state.pendingAttempts.hasKey(decisionId):
+            var attempt = readAttemptEvidence(state.pendingAttempts[decisionId])
+            if attempt.origin in {aoTeacher, aoHuman}: attempt.origin = aoUnknown
+            attempt.rejectionReason = some("interrupted before engine selection")
+            attempts.add(attempt)
+          state.staged.add(StagedDecision(id: decisionId, seat: $call.seat,
+            observation: view, executedAction: newJNull(), attempts: attempts,
+            selected: none(string), status: asMissing, terminal: true))
+        break
       var decision: Decision
       var fellBack = response == nil or response{"source"}.getStr() == "fallback"
       var rejection = ""
@@ -359,15 +419,16 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       var proposedAction = newJNull()
       withLock stateLock:
         if response != nil:
+          let playerFallback = response["source"].getStr() == "fallback"
           var modelResponse = none(string)
           if response.hasKey("training_attempt") and response["training_attempt"].kind == JObject:
             let evidence = readAttemptEvidence(response["training_attempt"])
-            if evidence.origin == aoModel:
+            if evidence.origin == aoModel and not playerFallback:
               modelResponse = some(if evidence.response.kind == JString:
                 evidence.response.getStr() else: "")
           let resolution = state.sim.resolveAction(call, $response["action"], view,
             response{"source"}.getStr() != "llm", fallbackClient, modelResponse)
-          proposedAction = resolution.proposedAction
+          proposedAction = if playerFallback: newJNull() else: resolution.proposedAction
           decision = resolution.decision
           if not resolution.accepted:
             fellBack = true
@@ -382,7 +443,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             state.sim.applyPick(call.pair, decision.pick, decision.notes, true)
         echo "babel: round ", simCopy.round + 1, " pair ", call.pair, " ",
           decisionText(state.sim, call, decision), " at ",
-          (epochTime() - gameStart).int, "s"
+          (getMonoTime() - gameStart).inSeconds, "s"
         if state.trajectory.isSome:
           let actualAction = state.sim.actionJson(call, decision)
           var attempts: seq[DecisionAttempt]
@@ -391,9 +452,11 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           if response != nil and response.hasKey("training_attempt") and
               response["training_attempt"].kind == JObject:
             privateEvidence = response["training_attempt"]
-          elif state.pendingAttempts.hasKey(call.seat) and
-              state.pendingAttempts[call.seat]["id"] == view["id"]:
-            privateEvidence = state.pendingAttempts[call.seat]["training_attempt"]
+          elif lateResponse != nil and lateResponse.hasKey("training_attempt") and
+              lateResponse["training_attempt"].kind == JObject:
+            privateEvidence = lateResponse["training_attempt"]
+          elif state.pendingAttempts.hasKey(decisionId):
+            privateEvidence = state.pendingAttempts[decisionId]
           if privateEvidence.kind == JObject:
             var attempt = readAttemptEvidence(privateEvidence)
             if attempt.origin in {aoTeacher, aoHuman}: attempt.origin = aoUnknown
@@ -402,7 +465,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             if rejection.len > 0:
               attempt.rejectionReason = some(rejection)
             elif response == nil:
-              attempt.rejectionReason = some("game decision timeout before player response")
+              attempt.rejectionReason = some(if lateResponse != nil:
+                "late player response after game decision deadline"
+                else: "game decision timeout before player response")
             attempts.add(attempt)
             if not fellBack:
               selected = some(attempt.attemptId)
@@ -414,11 +479,10 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             external.accepted = true
             attempts.add(external)
             selected = some(attemptId)
-          state.trajectory.get().recordDecision("babel-" & $view["id"].getInt(),
-            $call.seat, view, attempts, selected, actualAction,
-            if fellBack: asFallback else: asAccepted, terminal = state.sim.done,
-            fallbackOrigin = (if fellBack: some(fallbackPolicy)
-              else: none(string)))
+          state.staged.add(StagedDecision(id: decisionId, seat: $call.seat,
+            observation: view, attempts: attempts, selected: selected,
+            executedAction: actualAction, status: (if fellBack: asFallback else: asAccepted),
+            terminal: state.sim.done, fallbackOrigin: (if fellBack: some(fallbackPolicy) else: none(string))))
         state.broadcastLocked()
 
       ## Pace between rounds: after the pick that closes a round.
@@ -428,7 +492,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
     ## Let the verdict land before the final frame.
     if config.turnDelayMs > 0:
       sleep(config.turnDelayMs)
-    finishEpisode(runtimeConfig)
+    ownerStatus = if interruptionRequested() or state.sim.reason != "complete": esTruncated else: esCompleted
 
 var gameThread: Thread[RuntimeConfig]
 
@@ -493,15 +557,19 @@ proc playerUpgradeHandler(request: Request) {.gcsafe.} =
     if not authorized:
       request.respond(401)
       return
-    let websocket = request.upgradeToWebSocket()
     withLock stateLock:
+      if state.started or state.stopping or state.finished or slot in state.registeredSlots:
+        request.respond(409)
+        return
+      let websocket = request.upgradeToWebSocket()
+      state.registeredSlots.incl(slot)
       state.playerSockets[slot] = websocket
       state.socketSlots[websocket] = slot
       echo "babel: player slot ", slot, " connected (",
         state.playerSockets.len, "/", state.config.tokens.len, ")"
       websocket.send($ %*{
         "type": "welcome",
-        "protocol": "babel.player.v2",
+        "protocol": "babel.player.v3",
         "slot": slot,
         "name": state.sim.names[slot],
         "rounds": state.config.rounds
@@ -520,6 +588,26 @@ proc replayUpgradeHandler(request: Request) {.gcsafe.} =
     if replayPayloadGlobal.len > 0:
       websocket.send(replayPayloadGlobal)
 
+proc validateAttemptProgress(before, evidence: JsonNode) =
+  for key in ["prompt", "request", "decoder", "policy"]:
+    if evidence[key] != before[key]:
+      raise newException(ValueError, "native progress changed started request evidence")
+  if before["latency_ms"].kind != JNull and evidence != before:
+    raise newException(ValueError, "finished native evidence is immutable")
+  for key in ["response_body_b64", "response_headers_b64"]:
+    if before[key].kind != JNull and
+        (evidence[key].kind != JString or
+          not decode(evidence[key].getStr()).startsWith(decode(before[key].getStr()))):
+      raise newException(ValueError, "received native bytes cannot be rewritten")
+  if before["response_complete"] == %true:
+    for key in ["response_complete", "response_body_b64", "response_headers_b64"]:
+      if evidence[key] != before[key]:
+        raise newException(ValueError, "complete native bytes are immutable")
+  for key in ["http_status", "response_headers", "platform_call_id", "provider_request_id",
+      "model_identity", "tokenizer_identity", "chat_template_sha256"]:
+    if before[key].kind != JNull and evidence[key] != before[key]:
+      raise newException(ValueError, "received native identity is immutable")
+
 proc websocketHandler(
   websocket: WebSocket,
   event: WebSocketEvent,
@@ -530,6 +618,7 @@ proc websocketHandler(
     of OpenEvent:
       discard
     of MessageEvent:
+      let receivedAt = getMonoTime()
       ## mummy hands Ping frames to the application instead of answering
       ## them itself; the platform's certifier pings /global to check the
       ## game is alive, so an unanswered ping fails certification.
@@ -545,15 +634,118 @@ proc websocketHandler(
         return
       try:
         let payload = parseJson(message.data)
-        if payload{"type"}.getStr() == "attempt_started":
-          discard readAttemptEvidence(payload["training_attempt"])
+        let frameType = payload["type"].getStr()
+        if frameType in ["attempt_started", "action"]:
+          let id = payload["decision_id"].getStr()
+          var evidence = newJNull()
+          if payload["training_attempt"].kind != JNull:
+            evidence = payload["training_attempt"]
+            let attempt = readAttemptEvidence(evidence)
+            if attempt.attemptId != id & "-model":
+              raise newException(ValueError, "attempt identity differs from issued decision")
           withLock stateLock:
-            state.pendingAttempts[slot] = payload
-        elif payload{"type"}.getStr() == "action":
-          if payload.hasKey("training_attempt") and payload["training_attempt"].kind != JNull:
-            discard readAttemptEvidence(payload["training_attempt"])
+            if state.finished: return
+            if not state.decisionSeats.hasKey(id) or state.decisionSeats[id] != slot:
+              raise newException(ValueError, "decision does not belong to authenticated seat")
+            if receivedAt < state.decisionIssuedAt[id]:
+              raise newException(ValueError, "player frame preceded issued decision")
+            if evidence.kind == JObject:
+              if frameType == "action" and readAttemptEvidence(evidence).origin == aoModel and
+                  not state.pendingAttempts.hasKey(id):
+                raise newException(ValueError, "native completion has no recorded request start")
+              if state.pendingAttempts.hasKey(id):
+                validateAttemptProgress(state.pendingAttempts[id], evidence)
+              if frameType == "attempt_started":
+                let attempt = readAttemptEvidence(evidence)
+                if attempt.origin == aoModel:
+                  let view = state.decisionObservations[id]
+                  let emptyGuidance = promptMessages(view, "")
+                  let prefix = "Your private observation:\n" & $view & "\nOperator guidance:\n"
+                  let suffix = emptyGuidance[1]["content"].getStr()[prefix.len .. ^1]
+                  let user = attempt.request["messages"][0]["content"].getStr()
+                  if not user.startsWith(prefix) or not user.endsWith(suffix) or
+                      user.len < prefix.len + suffix.len:
+                    raise newException(ValueError, "native request differs from issued private observation")
+                  let guidance = user[prefix.len ..< user.len - suffix.len]
+                  let expected = promptMessages(view, guidance)
+                  if attempt.prompt != expected or
+                      attempt.request["system"] != expected[0]["content"] or
+                      attempt.request["messages"] != %*[{"role": "user", "content": user}]:
+                    raise newException(ValueError, "native prompt differs from production renderer")
+                state.pendingAttempts[id] = evidence
+              else:
+                if state.completedAttempts.hasKey(id) and state.completedAttempts[id] != evidence:
+                  raise newException(ValueError, "completion evidence is immutable")
+                state.completedAttempts[id] = evidence
+            if frameType == "action":
+              let source = payload["source"].getStr()
+              if source notin ["llm", "scripted", "fallback"]:
+                raise newException(ValueError, "unknown action source")
+              if source == "llm" and evidence.kind == JNull:
+                raise newException(ValueError, "native action has no attempt evidence")
+              if evidence.kind == JObject and source != "fallback":
+                let attempt = readAttemptEvidence(evidence)
+                if attempt.origin == aoModel:
+                  if attempt.responseComplete != some(true) or
+                      attempt.responseReaderJoined != some(true) or
+                      attempt.httpStatus != some(200) or attempt.rejectionReason.isSome:
+                    raise newException(ValueError, "native completion is not complete and joined")
+                  let body = parseJson(attempt.rawResponse.getStr())
+                  var text = ""
+                  for contentBlock in body["content"]:
+                    if contentBlock["type"].getStr() == "text": text.add(contentBlock["text"].getStr())
+                  if attempt.response != %text or attempt.model != some(body["model"].getStr()):
+                    raise newException(ValueError, "native body differs from completion response or model")
+              state.pendingActions[id] = (payload: payload, receivedAt: receivedAt)
+        elif frameType == "stopped":
+          if payload["worker_status"].getStr() notin ["joined", "no_active_call"]:
+            raise newException(ValueError, "unknown stopped worker status")
+          if payload["attempts"].kind != JArray:
+            raise newException(ValueError, "stop attempts must be an array")
           withLock stateLock:
-            state.pendingActions[slot] = payload
+            if state.finished: return
+            let expected = if state.latestDecisions.hasKey(slot):
+              %state.latestDecisions[slot] else: newJNull()
+            if payload["decision_id"].kind != JNull:
+              let id = payload["decision_id"].getStr()
+              if not state.decisionSeats.hasKey(id) or state.decisionSeats[id] != slot:
+                raise newException(ValueError, "stop acknowledgement belongs to another seat")
+              for evidence in payload["attempts"]:
+                let attempt = readAttemptEvidence(evidence)
+                if attempt.attemptId != id & "-model":
+                  raise newException(ValueError, "acknowledged attempt belongs to another decision")
+                if receivedAt < state.decisionIssuedAt[id]:
+                  raise newException(ValueError, "joined evidence preceded issued decision")
+                if attempt.origin == aoModel and not state.pendingAttempts.hasKey(id):
+                  raise newException(ValueError, "joined native evidence has no recorded request start")
+                if state.pendingAttempts.hasKey(id):
+                  validateAttemptProgress(state.pendingAttempts[id], evidence)
+                if state.completedAttempts.hasKey(id) and state.completedAttempts[id] != evidence:
+                  raise newException(ValueError, "stop changed completed evidence")
+                state.completedAttempts[id] = evidence
+            elif payload["attempts"].len != 0:
+              raise newException(ValueError, "no-active-call acknowledgement has attempt evidence")
+            # Confirm immutable fact receipt before the sender tears down its socket.
+            # This does not grant stop credit or platform receipt authority.
+            if state.playerSockets.hasKey(slot) and state.playerSockets[slot] == websocket:
+              websocket.send($(%*{"type": "evidence_received",
+                "decision_id": payload["decision_id"], "stop_id": payload["stop_id"]}))
+            # Preserve genuine joined transport facts even when the player stops first.
+            # They do not grant acknowledgement credit before this engine's stop window.
+            if payload["decision_id"] != expected:
+              raise newException(ValueError, "stop acknowledgement differs from latest decision")
+            if not state.stopping:
+              raise newException(ValueError, "stop acknowledgement preceded engine stop")
+            if receivedAt < state.stopIssuedAt or receivedAt > state.acknowledgementDeadline:
+              raise newException(ValueError, "stop acknowledgement is outside cleanup window")
+            if not payload.hasKey("stop_id") or payload["stop_id"] != %state.stopId:
+              raise newException(ValueError, "stop acknowledgement differs from engine stop identity")
+            for evidence in payload["attempts"]:
+              if readAttemptEvidence(evidence).responseReaderJoined == some(false):
+                raise newException(ValueError, "stop retains an unjoined native response reader")
+            state.stoppedSlots.incl(slot)
+        else:
+          raise newException(ValueError, "unknown player frame")
       except CatchableError as error:
         echo "babel: ignoring invalid player frame"
     of ErrorEvent:
@@ -562,7 +754,8 @@ proc websocketHandler(
       withLock stateLock:
         if websocket in state.socketSlots:
           let slot = state.socketSlots[websocket]
-          state.socketSlots.del(websocket)
+          # Parallel callbacks may dispatch an already-received final frame after close.
+          # Keep its authenticated owner binding until this episode seals.
           if state.playerSockets.getOrDefault(slot) == websocket:
             state.playerSockets.del(slot)
         state.globalSockets.excl(websocket)
@@ -611,13 +804,18 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
   replayPayloadGlobal = $enriched
 
   let router = buildRouter(replayMode = true)
-  gameServer = newServer(router, websocketHandler)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4)
   echo "babel: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
 
 proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   if config.tokens.len != config.players.len:
     raise newException(BabelError, "tokens and players must align")
+  let episodeSeconds = getEnv("COWORLD_TIMEOUT_SECONDS", $config.episodeTimeoutSeconds).parseFloat()
+  if classify(episodeSeconds) in {fcNan, fcInf, fcNegInf} or episodeSeconds <= 0:
+    raise newException(ValueError, "episode timeout must be finite and positive")
+  state.episodeTimeoutSeconds = episodeSeconds
+  state.episodeDeadline = getMonoTime() + initDuration(milliseconds = int64(episodeSeconds * 1000))
   state.config = config
   state.sim = initSim(config)
   if getEnv(CogameSaveTrajectoryUriEnv).len > 0:
@@ -629,7 +827,18 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   runtimeConfigGlobal = runtimeConfig
 
   let router = buildRouter(replayMode = false)
-  gameServer = newServer(router, websocketHandler)
-  createThread(gameThread, runGame, runtimeConfig)
+  installNativeStopHandlers()
+  gameServer = newServer(router, websocketHandler, workerThreads = 4)
+  var ownerCreated = false
   echo "babel: serving on ", runtimeConfig.host, ":", runtimeConfig.port
-  gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
+  try:
+    gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host,
+      onReady = proc(server: Server) {.gcsafe.} =
+        {.gcsafe.}:
+          createThread(gameThread, runGame, runtimeConfig)
+          ownerCreated = true)
+  finally:
+    requestNativeStop()
+    if ownerCreated: joinThread(gameThread)
+    else:
+      finishEpisode(runtimeConfig, esFailed)

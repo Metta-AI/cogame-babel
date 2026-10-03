@@ -33,30 +33,22 @@ records offline prompt templates and the built-in scripted baseline's accepted
 JSON reply. These templates are training data, not the hosted player's exact
 request body. Every seat's glyph alphabet is
 seeded independently; speaker labels use the acting seat's visible glyphs.
-Whole games are assigned to training or validation by seed.
+Complete source-owned trajectories use the canonical private prompt and engine parser.
+The exporter writes owner-only `trajectories.jsonl` and `manifest.json`; it creates no training labels or splits.
+Scripted attempts retain their actual prompt, response, policy, and parsed/applied action.
+All model-serving fields remain null.
 
 After syncing `nimby.lock` as shown in the [README](../README.md):
 
 ```sh
 nim c --path:src --out:bin/export-posttrain tools/export_posttrain.nim
-bin/export-posttrain /tmp/babel-posttrain-dataset 100
+bin/export-posttrain /tmp/babel-posttrain-corpus 100 11 source-engine-1
 ```
 
-The output contains `train.jsonl`, `validation.jsonl`, and `manifest.json`.
-Rows match Metta post-training's `Example` schema. The manifest records the
-source revision, per-game scores, decision counts, and the operator prompt.
-The prompts use `PLAYER_PROMPT="Build a shared glyph code from feedback."`.
+Keep source diagnostic versions distinct from published package versions.
+The shared `metta_posttrain.hosted.export_hosted` importer requires external review bound to the corpus SHA256 and exact source revision.
+It assigns whole seed families to splits and rejects unreviewed teachers or model calls without registered platform receipts.
+Previous direct datasets remain historical artifacts; they cannot qualify current labels.
 
-From a Metta checkout with `metta-posttrain` installed:
-
-```sh
-uv run --package metta-posttrain --extra train python -m metta_posttrain.train \
-  --dataset /tmp/babel-posttrain-dataset \
-  --output /tmp/babel-posttrain-run \
-  --model MODEL_OR_PATH --max-steps 1000 --max-length 2048
-```
-
-Check the optimizer manifest for overlength examples with the chosen
-tokenizer. This dataset imitates the scripted baseline; it does not measure
-trained-model score. A trained model needs a player policy that serves it
-through the ordinary `babel.player.v2` action interface before it can play.
+A source-owned scripted corpus establishes supervised imitation data, not trained-model strength or published runtime parity.
+Evaluate a frozen learner through the same native player protocol with actual registered engine/model receipts.
