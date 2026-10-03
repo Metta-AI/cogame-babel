@@ -237,7 +237,8 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       if slot notin state.stoppedSlots:
         finalStatus = esTruncated
         allAcknowledged = false
-    results["player_cleanup"] = cleanup
+    let privateOutcome = copy(results)
+    privateOutcome["player_cleanup"] = cleanup
     replayData = state.replayPayload(results)
     if state.trajectory.isSome:
       for staged in state.staged:
@@ -259,7 +260,7 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       var outcomes = newJObject()
       for seat in 0 ..< Seats: outcomes[$seat] = results["scores"][seat]
       if interruptionRequested(): finalStatus = esTruncated
-      state.trajectory.get().finish(finalStatus, results,
+      state.trajectory.get().finish(finalStatus, privateOutcome,
         if finalStatus != esCompleted: newJNull() else: outcomes)
     var names = newJArray()
     for name in state.sim.names: names.add(%name)
