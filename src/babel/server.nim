@@ -22,7 +22,7 @@
 ##   Budgets live in the transport envelope, outside canonical observations.
 
 import
-  std/[json, locks, math, monotimes, options, os, sets, strutils, sysrand, tables, times],
+  std/[base64, json, locks, math, monotimes, options, os, sets, strutils, sysrand, tables, times],
   bitworld/runtime,
   bitworld/[artifact_runtime, decision_trajectory, native_stop],
   mummy,
@@ -588,6 +588,26 @@ proc replayUpgradeHandler(request: Request) {.gcsafe.} =
     if replayPayloadGlobal.len > 0:
       websocket.send(replayPayloadGlobal)
 
+proc validateAttemptProgress(before, evidence: JsonNode) =
+  for key in ["prompt", "request", "decoder", "policy"]:
+    if evidence[key] != before[key]:
+      raise newException(ValueError, "native progress changed started request evidence")
+  if before["latency_ms"].kind != JNull and evidence != before:
+    raise newException(ValueError, "finished native evidence is immutable")
+  for key in ["response_body_b64", "response_headers_b64"]:
+    if before[key].kind != JNull and
+        (evidence[key].kind != JString or
+          not decode(evidence[key].getStr()).startsWith(decode(before[key].getStr()))):
+      raise newException(ValueError, "received native bytes cannot be rewritten")
+  if before["response_complete"] == %true:
+    for key in ["response_complete", "response_body_b64", "response_headers_b64"]:
+      if evidence[key] != before[key]:
+        raise newException(ValueError, "complete native bytes are immutable")
+  for key in ["http_status", "response_headers", "platform_call_id", "provider_request_id",
+      "model_identity", "tokenizer_identity", "chat_template_sha256"]:
+    if before[key].kind != JNull and evidence[key] != before[key]:
+      raise newException(ValueError, "received native identity is immutable")
+
 proc websocketHandler(
   websocket: WebSocket,
   event: WebSocketEvent,
@@ -634,9 +654,7 @@ proc websocketHandler(
                   not state.pendingAttempts.hasKey(id):
                 raise newException(ValueError, "native completion has no recorded request start")
               if state.pendingAttempts.hasKey(id):
-                for key in ["prompt", "request", "decoder", "policy"]:
-                  if evidence[key] != state.pendingAttempts[id][key]:
-                    raise newException(ValueError, "completion changed started request evidence")
+                validateAttemptProgress(state.pendingAttempts[id], evidence)
               if frameType == "attempt_started":
                 let attempt = readAttemptEvidence(evidence)
                 if attempt.origin == aoModel:
@@ -701,9 +719,7 @@ proc websocketHandler(
                 if attempt.origin == aoModel and not state.pendingAttempts.hasKey(id):
                   raise newException(ValueError, "joined native evidence has no recorded request start")
                 if state.pendingAttempts.hasKey(id):
-                  for key in ["prompt", "request", "decoder", "policy"]:
-                    if evidence[key] != state.pendingAttempts[id][key]:
-                      raise newException(ValueError, "stop changed started request evidence")
+                  validateAttemptProgress(state.pendingAttempts[id], evidence)
                 if state.completedAttempts.hasKey(id) and state.completedAttempts[id] != evidence:
                   raise newException(ValueError, "stop changed completed evidence")
                 state.completedAttempts[id] = evidence

@@ -121,10 +121,14 @@ when isMainModule:
         let receivedAt = getMonoTime()
         let budget = payload["transport"]["budget_ms"].getInt()
         if budget <= 0: raise newException(ValueError, "decision transport budget must be positive")
-        decisionId = payload["decision_id"]
-        if decisionId.kind != JString or decisionId.getStr().len == 0:
+        let issuedId = payload["decision_id"]
+        if issuedId.kind != JString or issuedId.getStr().len == 0:
           raise newException(ValueError, "decision identity must be a nonempty string")
         joinWorker()
+        # Preserve the previous operation's identity and final bytes when stop wins
+        # while joining it. No new decision may clear that owned evidence.
+        if interruptionRequested(): break
+        decisionId = issuedId
         withLock evidenceLock: workerEvidence.setLen(0)
         workerFinished.store(false)
         createThread(worker, runDecision, PlayerCall(socket: socket,

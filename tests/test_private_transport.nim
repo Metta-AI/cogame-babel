@@ -82,3 +82,12 @@ suite "private external owner lifecycle":
     websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
     check state.completedAttempts[id] == attempt.attemptEvidenceJson()
     check 0 notin state.stoppedSlots
+
+  test "raw header callbacks cannot be rewritten during native progress":
+    var attempt = newDecisionAttempt("issued-model", "fixture", aoModel)
+    attempt.responseHeadersB64 = some(encode("HTTP/1.1 200 OK\r\nX-Private: original\r\n"))
+    let started = attempt.attemptEvidenceJson()
+    attempt.responseHeadersB64 = some(encode("HTTP/1.1 200 OK\r\nX-Private: changed\r\n"))
+    expect ValueError: validateAttemptProgress(started, attempt.attemptEvidenceJson())
+    attempt.responseHeadersB64 = some(encode("HTTP/1.1 200 OK\r\nX-Private: original\r\n\r\n"))
+    validateAttemptProgress(started, attempt.attemptEvidenceJson())
