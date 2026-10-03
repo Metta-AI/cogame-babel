@@ -78,7 +78,8 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
     call.socket.send($(%*{"type": "action", "decision_id": call.decisionId,
       "action": action, "source": source, "training_attempt": attempt}))
 
-proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode) =
+proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode,
+    cleanupDeadline: MonoTime) =
   ## Acknowledgement proves this owned worker joined, never a platform receipt.
   requestNativeStop()
   let hadWorker = workerCreated
@@ -89,6 +90,14 @@ proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode) =
   socket.send($(%*{"type": "stopped", "decision_id": decisionId, "stop_id": stopId,
     "worker_status": (if hadWorker: "joined" else: "no_active_call"),
     "attempts": attempts}))
+  while getMonoTime() < cleanupDeadline:
+    let remaining = (cleanupDeadline - getMonoTime()).inMilliseconds
+    let received = socket.receiveMessage(timeout = int(min(50, max(1, remaining))))
+    if received.isNone or received.get().kind != TextMessage: continue
+    let frame = parseJson(received.get().data)
+    if frame["type"].getStr() == "evidence_received" and
+        frame["decision_id"] == decisionId and frame["stop_id"] == stopId:
+      return
 
 when isMainModule:
   installNativeStopHandlers()
@@ -100,11 +109,13 @@ when isMainModule:
   var decisionId = newJNull()
   var acknowledged = false
   var finalDeadline: MonoTime
+  var cleanupBudgetMs = 0
   try:
     while true:
       if workerCreated and workerFinished.load(): joinWorker()
       if interruptionRequested() and not acknowledged:
-        stopAndAcknowledge(socket, decisionId, newJNull())
+        stopAndAcknowledge(socket, decisionId, newJNull(),
+          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
         acknowledged = true
         break
       if acknowledged and getMonoTime() >= finalDeadline: break
@@ -121,6 +132,8 @@ when isMainModule:
         let receivedAt = getMonoTime()
         let budget = payload["transport"]["budget_ms"].getInt()
         if budget <= 0: raise newException(ValueError, "decision transport budget must be positive")
+        cleanupBudgetMs = payload["transport"]["cleanup_budget_ms"].getInt()
+        if cleanupBudgetMs < 0: raise newException(ValueError, "cleanup budget cannot be negative")
         let issuedId = payload["decision_id"]
         if issuedId.kind != JString or issuedId.getStr().len == 0:
           raise newException(ValueError, "decision identity must be a nonempty string")
@@ -138,19 +151,21 @@ when isMainModule:
         workerCreated = true
       of "stop":
         finalDeadline = getMonoTime() + initDuration(milliseconds = payload["cleanup_budget_ms"].getInt())
-        stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"])
+        stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"], finalDeadline)
         acknowledged = true
       of "final":
         if not acknowledged:
-          stopAndAcknowledge(socket, decisionId, newJNull())
+          stopAndAcknowledge(socket, decisionId, newJNull(),
+          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
           acknowledged = true
         break
-      of "state": discard
+      of "state", "evidence_received": discard
       else: raise newException(ValueError, "unknown player frame")
   finally:
     let interrupted = interruptionRequested()
     requestNativeStop()
     joinWorker()
     if interrupted and not acknowledged:
-      stopAndAcknowledge(socket, decisionId, newJNull())
+      stopAndAcknowledge(socket, decisionId, newJNull(),
+          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
     socket.close()

@@ -725,6 +725,11 @@ proc websocketHandler(
                 state.completedAttempts[id] = evidence
             elif payload["attempts"].len != 0:
               raise newException(ValueError, "no-active-call acknowledgement has attempt evidence")
+            # Confirm immutable fact receipt before the sender tears down its socket.
+            # This does not grant stop credit or platform receipt authority.
+            if state.playerSockets.hasKey(slot) and state.playerSockets[slot] == websocket:
+              websocket.send($(%*{"type": "evidence_received",
+                "decision_id": payload["decision_id"], "stop_id": payload["stop_id"]}))
             # Preserve genuine joined transport facts even when the player stops first.
             # They do not grant acknowledgement credit before this engine's stop window.
             if payload["decision_id"] != expected:
