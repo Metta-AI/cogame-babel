@@ -804,7 +804,7 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
   replayPayloadGlobal = $enriched
 
   let router = buildRouter(replayMode = true)
-  gameServer = newServer(router, websocketHandler, workerThreads = 4)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4, maxMessageLen = 16 * 1024 * 1024)
   echo "babel: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
 
@@ -828,7 +828,7 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
 
   let router = buildRouter(replayMode = false)
   installNativeStopHandlers()
-  gameServer = newServer(router, websocketHandler, workerThreads = 4)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4, maxMessageLen = 16 * 1024 * 1024)
   var ownerCreated = false
   echo "babel: serving on ", runtimeConfig.host, ":", runtimeConfig.port
   try:

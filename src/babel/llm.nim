@@ -25,6 +25,7 @@ type
     responseComplete*, responseReaderJoined*: Option[bool]
     httpStatus*: Option[int]
     latencyMs*: Option[float]
+    inputTokens*, outputTokens*: Option[int]
     decoder*: JsonNode
     modelIdentity*, tokenizerIdentity*, chatTemplateSha256*, stopReason*: Option[string]
     promptTokenIds*, sampledTokenIds*: Option[seq[int]]
@@ -84,6 +85,8 @@ proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
   result.responseReaderJoined = evidence.responseReaderJoined
   result.httpStatus = evidence.httpStatus
   result.latencyMs = evidence.latencyMs
+  result.inputTokens = evidence.inputTokens
+  result.outputTokens = evidence.outputTokens
   result.rejectionReason = if failure.len > 0: some(failure) else: none(string)
   result.modelIdentity = evidence.modelIdentity
   result.tokenizerIdentity = evidence.tokenizerIdentity
@@ -193,17 +196,47 @@ proc completeText*(client: LlmClient, system, user: string, slot: int,
     raise newException(BabelError, "native inference error " & $status &
       ": " & response.bodyBytes[0 .. min(response.bodyBytes.high, 300)])
   let payload = parseJson(response.bodyBytes)
-  if payload.hasKey("model"):
-    client.lastCall.model = payload["model"].getStr()
-  client.lastCall.stopReason = some(payload["stop_reason"].getStr())
+  if payload.kind != JObject or payload["model"].kind != JString or
+      payload["content"].kind != JArray:
+    raise newException(BabelError, "native response violates the completion schema")
+  client.lastCall.model = payload["model"].getStr()
+  case payload["stop_reason"].kind
+  of JString: client.lastCall.stopReason = some(payload["stop_reason"].getStr())
+  of JNull: discard
+  else: raise newException(BabelError, "native stop reason must be text or null")
+  if payload.hasKey("usage") and payload["usage"].kind != JNull:
+    let usage = payload["usage"]
+    if usage.kind != JObject or usage["input_tokens"].kind != JInt or
+        usage["output_tokens"].kind != JInt or usage["input_tokens"].getInt() < 0 or
+        usage["output_tokens"].getInt() < 0:
+      raise newException(BabelError, "native usage must contain nonnegative integer counts")
+    client.lastCall.inputTokens = some(usage["input_tokens"].getInt())
+    client.lastCall.outputTokens = some(usage["output_tokens"].getInt())
   if payload.hasKey("sampling_evidence") and payload["sampling_evidence"].kind != JNull:
     let sampling = payload["sampling_evidence"]
+    if sampling.kind != JObject or sampling["prompt_token_ids"].kind != JArray or
+        sampling["completion_token_ids"].kind != JArray or sampling["stop_reason"].kind != JString:
+      raise newException(BabelError, "native sampling evidence violates the token schema")
     var promptIds, sampledIds: seq[int]
     var probabilities: seq[float]
-    for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
-    for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
+    for token in sampling["prompt_token_ids"]:
+      if token.kind != JInt or token.getInt() < 0:
+        raise newException(BabelError, "native prompt token IDs must be nonnegative integers")
+      promptIds.add(token.getInt())
+    for token in sampling["completion_token_ids"]:
+      if token.kind != JInt or token.getInt() < 0:
+        raise newException(BabelError, "native sampled token IDs must be nonnegative integers")
+      sampledIds.add(token.getInt())
     if sampling["behavior_log_probs"].kind != JNull:
-      for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
+      if sampling["behavior_log_probs"].kind != JArray:
+        raise newException(BabelError, "native draw probabilities must be an array or null")
+      for probability in sampling["behavior_log_probs"]:
+        if probability.kind notin {JInt, JFloat} or
+            classify(probability.getFloat()) in {fcNan, fcInf, fcNegInf} or probability.getFloat() > 0:
+          raise newException(BabelError, "native draw probabilities must be finite nonpositive numbers")
+        probabilities.add(probability.getFloat())
+      if probabilities.len != sampledIds.len:
+        raise newException(BabelError, "native draw probabilities must match sampled token IDs")
     client.lastCall.promptTokenIds = some(promptIds)
     client.lastCall.sampledTokenIds = some(sampledIds)
     if sampling["behavior_log_probs"].kind != JNull:
@@ -212,8 +245,12 @@ proc completeText*(client: LlmClient, system, user: string, slot: int,
   if payload{"stop_reason"}.getStr() == "refusal":
     raise newException(BabelError, "native inference refusal")
   for contentBlock in payload["content"]:
-    if contentBlock{"type"}.getStr() == "text":
-      result.add(contentBlock{"text"}.getStr())
+    if contentBlock.kind != JObject or contentBlock["type"].kind != JString:
+      raise newException(BabelError, "native content block violates the completion schema")
+    if contentBlock["type"].getStr() == "text":
+      if contentBlock["text"].kind != JString:
+        raise newException(BabelError, "native text content must be text")
+      result.add(contentBlock["text"].getStr())
   client.lastCall.response = result
   if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
     raise newException(BabelError, "reply cut off at max_tokens before " &

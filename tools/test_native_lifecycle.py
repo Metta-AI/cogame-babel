@@ -102,6 +102,11 @@ for case in ("started-sigterm", "partial-sigterm", "partial-sigint", "player-sig
         assert game.wait(timeout=8) == 0
         elapsed = time.monotonic() - stopped_at
         release.set()
+        # A joined/evidence-confirmed player has no final frame to await after
+        # private truncation. Every surviving owner exits without teardown help.
+        for index, player in enumerate(processes[1:], start=1):
+            expected_exit = -signal.SIGKILL if case == "disconnected" and index == 1 else 0
+            assert player.wait(timeout=1) == expected_exit
         events = [json.loads(line) for line in (output / "trajectory.jsonl").read_text().splitlines()]
         episode = events[-1]
         assert episode["status"] == "truncated" and episode["participant_outcomes"] is None

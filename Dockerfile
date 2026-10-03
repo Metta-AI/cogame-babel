@@ -40,9 +40,9 @@ RUN rm -f nim.cfg && \
     else echo "--path:\"$pkg\"" >> nim.cfg; fi; \
   done && \
   echo '--path:"src"' >> nim.cfg && \
-  nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
+  nim c --parallelBuild:1 -d:release -d:useMalloc --opt:speed --stackTrace:on \
     --nimcache:/tmp/babel-nimcache --out:babel src/babel.nim && \
-  nim c -d:release -d:useMalloc --opt:speed --stackTrace:on \
+  nim c --parallelBuild:1 -d:release -d:useMalloc --opt:speed --stackTrace:on \
     --nimcache:/tmp/babel-player-nimcache --out:babel-player \
     src/babel_player.nim
 

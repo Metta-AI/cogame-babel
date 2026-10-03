@@ -4,9 +4,8 @@
 ##   coworld upload-policy <babel-image> --name my-babel \
 ##     --run /bin/babel-player --secret-env PLAYER_PROMPT="<your strategy>"
 
-import std/[atomics, json, locks, monotimes, options, os, strutils, times]
-import whisky
-import bitworld/[decision_trajectory, native_stop]
+import std/[atomics, json, locks, math, monotimes, options, os, strutils, times]
+import bitworld/[decision_trajectory, native_stop, native_websocket]
 import babel/[llm, player_policy]
 
 const DefaultPrompt = """
@@ -24,7 +23,7 @@ two attributes with your best reading over a wild guess.
 """
 
 type PlayerCall = object
-  socket: WebSocket
+  socket: ptr NativeWebSocket
   decisionId, observation, prompt: string
   deadline: MonoTime
   scripted: bool
@@ -61,8 +60,10 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
       let started = evidence.privateAttempt(call.decisionId & "-model").attemptEvidenceJson()
       {.gcsafe.}:
         withLock evidenceLock: workerEvidence = $started
-      call.socket.send($(%*{"type": "attempt_started", "decision_id": call.decisionId,
-        "training_attempt": started}))
+      let sent = call.socket[].sendNativeText($(%*{"type": "attempt_started", "decision_id": call.decisionId,
+        "training_attempt": started}), call.deadline)
+      if sent.kind != wsReady:
+        raise newException(ValueError, "native attempt start was not delivered")
     try:
       action = promptAction(client, observation, call.prompt, call.deadline)
       source = "llm"
@@ -75,11 +76,11 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
     {.gcsafe.}:
       withLock evidenceLock: workerEvidence = $attempt
   if not interruptionRequested():
-    call.socket.send($(%*{"type": "action", "decision_id": call.decisionId,
-      "action": action, "source": source, "training_attempt": attempt}))
+    discard call.socket[].sendNativeText($(%*{"type": "action", "decision_id": call.decisionId,
+      "action": action, "source": source, "training_attempt": attempt}), call.deadline)
 
-proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode,
-    cleanupDeadline: MonoTime) =
+proc stopAndAcknowledge(socket: NativeWebSocket, decisionId, stopId: JsonNode,
+    cleanupDeadline: MonoTime): bool =
   ## Acknowledgement proves this owned worker joined, never a platform receipt.
   requestNativeStop()
   let hadWorker = workerCreated
@@ -87,17 +88,18 @@ proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode,
   var attempts = newJArray()
   withLock evidenceLock:
     if workerEvidence.len > 0: attempts.add(parseJson(workerEvidence))
-  socket.send($(%*{"type": "stopped", "decision_id": decisionId, "stop_id": stopId,
+  let sent = socket.sendCleanupText($(%*{"type": "stopped", "decision_id": decisionId, "stop_id": stopId,
     "worker_status": (if hadWorker: "joined" else: "no_active_call"),
-    "attempts": attempts}))
+    "attempts": attempts}), cleanupDeadline)
+  if sent.kind != wsReady: return false
   while getMonoTime() < cleanupDeadline:
-    let remaining = (cleanupDeadline - getMonoTime()).inMilliseconds
-    let received = socket.receiveMessage(timeout = int(min(50, max(1, remaining))))
-    if received.isNone or received.get().kind != TextMessage: continue
-    let frame = parseJson(received.get().data)
+    let received = socket.receiveCleanupText(cleanupDeadline)
+    if received.kind != wsMessage: return false
+    let frame = parseJson(received.data)
     if frame["type"].getStr() == "evidence_received" and
         frame["decision_id"] == decisionId and frame["stop_id"] == stopId:
-      return
+      return true
+  false
 
 when isMainModule:
   installNativeStopHandlers()
@@ -105,25 +107,40 @@ when isMainModule:
   if url.len == 0: quit("COWORLD_PLAYER_WS_URL is not set", 1)
   let prompt = getEnv("PLAYER_PROMPT", DefaultPrompt)
   let scripted = getEnv("PLAYER_SCRIPTED").strip() in ["1", "true", "yes"]
-  let socket = newWebSocket(url)
+  let timeout = parseFloat(getEnv("COWORLD_TIMEOUT_SECONDS", "1200"))
+  if timeout <= 0 or classify(timeout) in {fcNan, fcInf, fcNegInf}:
+    raise newException(ValueError, "player timeout must be finite and positive")
+  let started = getMonoTime()
+  let playerDeadline = started + initDuration(nanoseconds = int64(timeout * 1_000_000_000))
+  let connection = connectNativeWebSocket(url,
+    min(playerDeadline, started + initDuration(seconds = 30)), 16 * 1024 * 1024)
+  case connection.kind
+  of wsInterrupted, wsDeadline: quit(0)
+  of wsReady: discard
+  else: raise newException(ValueError, "native player connection failed")
+  var socket = connection.socket
   var decisionId = newJNull()
   var acknowledged = false
   var finalDeadline: MonoTime
   var cleanupBudgetMs = 0
+  var cleanupStarted = false
   try:
     while true:
       if workerCreated and workerFinished.load(): joinWorker()
       if interruptionRequested() and not acknowledged:
-        stopAndAcknowledge(socket, decisionId, newJNull(),
-          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
-        acknowledged = true
+        finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+        cleanupStarted = true
+        acknowledged = stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
         break
-      if acknowledged and getMonoTime() >= finalDeadline: break
-      let received = socket.receiveMessage(timeout = 50)
-      if received.isNone: continue
-      let message = received.get()
-      if message.kind != TextMessage: continue
-      let payload = parseJson(message.data)
+      if getMonoTime() >= playerDeadline: break
+      let received = socket.receiveNativeText(min(playerDeadline,
+        getMonoTime() + initDuration(milliseconds = 50)))
+      case received.kind
+      of wsDeadline, wsInterrupted: continue
+      of wsClosed: break
+      of wsMessage: discard
+      else: raise newException(ValueError, "native player socket failed")
+      let payload = parseJson(received.data)
       case payload["type"].getStr()
       of "welcome":
         echo "babel player: seated at slot ", payload["slot"].getInt()
@@ -144,28 +161,28 @@ when isMainModule:
         decisionId = issuedId
         withLock evidenceLock: workerEvidence.setLen(0)
         workerFinished.store(false)
-        createThread(worker, runDecision, PlayerCall(socket: socket,
+        createThread(worker, runDecision, PlayerCall(socket: socket.addr,
           decisionId: decisionId.getStr(), observation: $payload["observation"],
           prompt: prompt, scripted: scripted,
-          deadline: receivedAt + initDuration(milliseconds = budget)))
+          deadline: min(playerDeadline, receivedAt + initDuration(milliseconds = budget))))
         workerCreated = true
       of "stop":
         finalDeadline = getMonoTime() + initDuration(milliseconds = payload["cleanup_budget_ms"].getInt())
-        stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"], finalDeadline)
-        acknowledged = true
+        cleanupStarted = true
+        acknowledged = stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"], finalDeadline)
+        break  # Confirmed evidence delivery finishes this client's ownership.
       of "final":
         if not acknowledged:
-          stopAndAcknowledge(socket, decisionId, newJNull(),
-          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
-          acknowledged = true
+          finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+          cleanupStarted = true
+          acknowledged = stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
         break
       of "state", "evidence_received": discard
       else: raise newException(ValueError, "unknown player frame")
   finally:
-    let interrupted = interruptionRequested()
     requestNativeStop()
     joinWorker()
-    if interrupted and not acknowledged:
-      stopAndAcknowledge(socket, decisionId, newJNull(),
-          getMonoTime() + initDuration(milliseconds = cleanupBudgetMs))
-    socket.close()
+    if not cleanupStarted:
+      finalDeadline = getMonoTime() + initDuration(milliseconds = cleanupBudgetMs)
+      discard stopAndAcknowledge(socket, decisionId, newJNull(), finalDeadline)
+    closeNativeWebSocket(socket)
