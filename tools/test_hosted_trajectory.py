@@ -136,6 +136,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
                 assert decision["visibility"] == "private"
                 assert decision["observation"]["slot"] == int(decision["seat"])
                 attempt, = decision["attempts"]
+                assert attempt["inference_mode"] == "text_action"
                 call_id = attempt["platform_call_id"]
                 if failure == "unknown":
                     assert attempt["origin"] == "unknown" and call_id is None
