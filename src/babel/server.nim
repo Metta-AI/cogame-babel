@@ -719,6 +719,9 @@ proc websocketHandler(
               raise newException(ValueError, "stop acknowledgement is outside cleanup window")
             if not payload.hasKey("stop_id") or payload["stop_id"] != %state.stopId:
               raise newException(ValueError, "stop acknowledgement differs from engine stop identity")
+            for evidence in payload["attempts"]:
+              if readAttemptEvidence(evidence).responseReaderJoined == some(false):
+                raise newException(ValueError, "stop retains an unjoined native response reader")
             state.stoppedSlots.incl(slot)
         else:
           raise newException(ValueError, "unknown player frame")

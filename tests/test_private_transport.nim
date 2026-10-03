@@ -60,3 +60,25 @@ suite "private external owner lifecycle":
     stopped["stop_id"] = %state.stopId
     websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
     check 0 in state.stoppedSlots
+
+  test "nonce does not acknowledge an explicitly unjoined response reader":
+    state = GameState()
+    let socket = default(WebSocket)
+    let id = "babel-unjoined"
+    state.socketSlots[socket] = 0
+    state.registeredSlots.incl(0)
+    state.decisionSeats[id] = 0
+    state.decisionIssuedAt[id] = getMonoTime() - initDuration(seconds = 1)
+    state.latestDecisions[0] = id
+    state.stopping = true
+    state.stopId = "issued-stop-identity"
+    state.stopIssuedAt = getMonoTime() - initDuration(seconds = 1)
+    state.acknowledgementDeadline = getMonoTime() + initDuration(seconds = 1)
+    var attempt = newDecisionAttempt(id & "-model", "fixture", aoModel)
+    state.pendingAttempts[id] = attempt.attemptEvidenceJson()
+    attempt.responseReaderJoined = some(false)
+    let stopped = %*{"type": "stopped", "decision_id": id,
+      "stop_id": state.stopId, "worker_status": "joined", "attempts": [attempt.attemptEvidenceJson()]}
+    websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
+    check state.completedAttempts[id] == attempt.attemptEvidenceJson()
+    check 0 notin state.stoppedSlots
