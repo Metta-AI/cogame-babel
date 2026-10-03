@@ -199,6 +199,12 @@ proc statesFromEvents(config: GameConfig, events: seq[GameEvent]): JsonNode =
   for frame in replayMatch(config, events):
     result.add(frame.tableStateJson())
 
+proc waitUntil(deadline: MonoTime) =
+  while not interruptionRequested():
+    let remaining = (deadline - getMonoTime()).inMilliseconds
+    if remaining <= 0: return
+    sleep(int(min(remaining, 10)))
+
 proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
   ## One owner seals after bounded stop acknowledgements; no remote join is assumed.
   let cleanupDeadline = min(state.episodeDeadline, getMonoTime() + initDuration(seconds = 5))
@@ -285,7 +291,8 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
   if not interruptionRequested() and status != esFailed and allAcknowledged:
     writeArtifact(runtimeConfig.resultsUri, $results, "application/json", "COGAME_RESULTS_METHOD", cleanupDeadline)
     writeArtifact(runtimeConfig.replayUri, replayData, "application/octet-stream", "COGAME_SAVE_REPLAY_METHOD", cleanupDeadline)
-    if getMonoTime() + initDuration(milliseconds = 500) < cleanupDeadline: sleep(500)
+    if getMonoTime() + initDuration(milliseconds = 500) < cleanupDeadline:
+      waitUntil(getMonoTime() + initDuration(milliseconds = 500))
 
 const PlayBudgetFraction* = 0.6
   ## Share of the platform's episode timeout spent playing. The rest covers
@@ -487,11 +494,11 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
 
       ## Pace between rounds: after the pick that closes a round.
       if config.turnDelayMs > 0 and call.kind == ckPick and call.pair == 1:
-        sleep(config.turnDelayMs)
+        waitUntil(min(playDeadline, getMonoTime() + initDuration(milliseconds = config.turnDelayMs)))
 
     ## Let the verdict land before the final frame.
     if config.turnDelayMs > 0:
-      sleep(config.turnDelayMs)
+      waitUntil(min(playDeadline, getMonoTime() + initDuration(milliseconds = config.turnDelayMs)))
     ownerStatus = if interruptionRequested() or state.sim.reason != "complete": esTruncated else: esCompleted
 
 var gameThread: Thread[RuntimeConfig]
@@ -804,7 +811,7 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
   replayPayloadGlobal = $enriched
 
   let router = buildRouter(replayMode = true)
-  gameServer = newServer(router, websocketHandler, workerThreads = 4)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4, maxMessageLen = 16 * 1024 * 1024)
   echo "babel: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
 
@@ -828,7 +835,7 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
 
   let router = buildRouter(replayMode = false)
   installNativeStopHandlers()
-  gameServer = newServer(router, websocketHandler, workerThreads = 4)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4, maxMessageLen = 16 * 1024 * 1024)
   var ownerCreated = false
   echo "babel: serving on ", runtimeConfig.host, ":", runtimeConfig.port
   try:

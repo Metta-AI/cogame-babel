@@ -35,24 +35,25 @@ jobs:
         run: |
           set -euo pipefail
           for test in tests/*.nim; do
-            nim c -r --path:src "$test"
-            nim c -r -d:release --path:src "$test"
+            nim c --parallelBuild:1 -r --path:src "$test"
+            nim c --parallelBuild:1 -r -d:release --path:src "$test"
           done
       - name: Test numeric and production language training bridge
         run: |
           set -euo pipefail
-          nim c -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
+          nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/babel-train-bridge
 
       - name: Verify real private trajectory capture and fallback attribution
         run: |
           set -euo pipefail
-          nim c -d:release --path:src -o:/tmp/babel-game src/babel.nim
-          nim c -d:release --path:src -o:/tmp/babel-player src/babel_player.nim
+          nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-game src/babel.nim
+          nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-player src/babel_player.nim
           python3 tools/test_hosted_trajectory.py /tmp/babel-game /tmp/babel-player
-          nim c -d:release --path:src -o:/tmp/babel-origin-player tests/support/attempt_origin_player.nim
+          nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-origin-player tests/support/attempt_origin_player.nim
           python3 tools/test_attempt_origins.py /tmp/babel-game /tmp/babel-origin-player
           python3 tools/test_native_lifecycle.py /tmp/babel-game /tmp/babel-player /tmp/babel-native-lifecycle
+          python3 tools/test_wait_lifecycle.py /tmp/babel-game /tmp/babel-player /tmp/babel-wait-lifecycle
 
   certify:
     runs-on: ubuntu-latest

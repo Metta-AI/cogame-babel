@@ -1,7 +1,6 @@
 ## Socket fixture that asserts fully populated teacher/human evidence as a player.
-import std/[json, options, os]
-import whisky
-import bitworld/decision_trajectory
+import std/[json, monotimes, options, os, times]
+import bitworld/[decision_trajectory, native_websocket]
 import babel/[llm, player_policy]
 
 let kind = getEnv("ASSERTED_ORIGIN")
@@ -10,12 +9,15 @@ let origin = case kind
   of "human": aoHuman
   of "model-mismatch", "model-body-mismatch", "scripted-model-body-mismatch": aoModel
   else: aoUnknown
-let socket = newWebSocket(getEnv("COWORLD_PLAYER_WS_URL"))
+let deadline = getMonoTime() + initDuration(seconds = 30)
+let connected = connectNativeWebSocket(getEnv("COWORLD_PLAYER_WS_URL"), deadline, 16 * 1024 * 1024)
+doAssert connected.kind == wsReady
+let socket = connected.socket
 while true:
-  let received = socket.receiveMessage()
-  if received.isNone: break
-  if received.get().kind != TextMessage: continue
-  let packet = parseJson(received.get().data)
+  let received = socket.receiveNativeText(deadline)
+  if received.kind == wsClosed: break
+  doAssert received.kind == wsMessage
+  let packet = parseJson(received.data)
   case packet["type"].getStr()
   of "decision":
     let view = packet["observation"]
@@ -41,8 +43,8 @@ while true:
       var started = attempt
       started.response = newJNull()
       started.rawResponse = newJNull()
-      socket.send($(%*{"type": "attempt_started", "decision_id": packet["decision_id"],
-        "training_attempt": started.attemptEvidenceJson()}))
+      doAssert socket.sendNativeText($(%*{"type": "attempt_started", "decision_id": packet["decision_id"],
+        "training_attempt": started.attemptEvidenceJson()}), deadline).kind == wsReady
       attempt.rawResponse = %($(%*{"model": "asserted-teacher",
         "content": [{"type": "text", "text": $sampled}]}))
       if kind in ["model-body-mismatch", "scripted-model-body-mismatch"]:
@@ -52,16 +54,16 @@ while true:
       attempt.responseComplete = some(true)
       attempt.responseReaderJoined = some(true)
     if kind == "premature-stop":
-      socket.send($(%*{"type": "stopped", "decision_id": packet["decision_id"], "stop_id": newJNull(),
-        "worker_status": "no_active_call", "attempts": []}))
-    socket.send($(%*{"type": "action", "decision_id": packet["decision_id"],
-      "source": (if kind == "scripted-model-body-mismatch": "scripted" else: "llm"), "action": action, "training_attempt": attempt.attemptEvidenceJson()}))
+      doAssert socket.sendNativeText($(%*{"type": "stopped", "decision_id": packet["decision_id"], "stop_id": newJNull(),
+        "worker_status": "no_active_call", "attempts": []}), deadline).kind == wsReady
+    doAssert socket.sendNativeText($(%*{"type": "action", "decision_id": packet["decision_id"],
+      "source": (if kind == "scripted-model-body-mismatch": "scripted" else: "llm"), "action": action, "training_attempt": attempt.attemptEvidenceJson()}), deadline).kind == wsReady
   of "stop":
     if kind == "premature-stop": break
     let stoppedId = if kind == "stale-stop": %(packet["decision_id"].getStr() & "-stale") else: packet["decision_id"]
-    socket.send($(%*{"type": "stopped", "decision_id": stoppedId, "stop_id": packet["stop_id"],
-      "worker_status": "no_active_call", "attempts": []}))
+    doAssert socket.sendNativeText($(%*{"type": "stopped", "decision_id": stoppedId, "stop_id": packet["stop_id"],
+      "worker_status": "no_active_call", "attempts": []}), deadline).kind == wsReady
     if kind == "stale-stop": break
   of "final": break
   else: discard
-socket.close()
+closeNativeWebSocket(socket)
