@@ -22,7 +22,7 @@
 ##   Budgets live in the transport envelope, outside canonical observations.
 
 import
-  std/[json, locks, math, monotimes, options, os, sets, strutils, tables, times],
+  std/[json, locks, math, monotimes, options, os, sets, strutils, sysrand, tables, times],
   bitworld/runtime,
   bitworld/[artifact_runtime, decision_trajectory, native_stop],
   mummy,
@@ -64,6 +64,7 @@ type
     globalSockets: HashSet[WebSocket]
     started: bool
     stopping: bool
+    stopId: string
     stopIssuedAt, acknowledgementDeadline: MonoTime
     finished: bool
     trajectory: Option[DecisionTrajectory]
@@ -205,6 +206,9 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
   withLock stateLock:
     if state.finished: return
     state.stopping = true
+    var stopToken: array[16, byte]
+    doAssert urandom(stopToken), "OS entropy unavailable for stop identity"
+    for value in stopToken: state.stopId.add(value.toHex(2))
     state.stopIssuedAt = getMonoTime()
     state.acknowledgementDeadline = cleanupDeadline - initDuration(seconds = 1)
     for slot in state.registeredSlots:
@@ -212,9 +216,9 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       if not state.playerSockets.hasKey(slot): continue
       let socket = state.playerSockets[slot]
       let id = if state.latestDecisions.hasKey(slot): %state.latestDecisions[slot] else: newJNull()
-      socket.send($(%*{"type": "stop", "decision_id": id,
+      socket.send($(%*{"type": "stop", "decision_id": id, "stop_id": state.stopId,
         "reason": (if interruptionRequested(): "interrupted" elif status == esCompleted: "terminal" else: "episode_deadline"),
-        "cleanup_budget_ms": max(0, (cleanupDeadline - getMonoTime()).inMilliseconds)}))
+        "cleanup_budget_ms": max(0, (state.acknowledgementDeadline - getMonoTime()).inMilliseconds)}))
   let acknowledgementDeadline = cleanupDeadline - initDuration(seconds = 1)
   while getMonoTime() < acknowledgementDeadline:
     var acknowledged = true
@@ -684,8 +688,6 @@ proc websocketHandler(
             if state.finished: return
             let expected = if state.latestDecisions.hasKey(slot):
               %state.latestDecisions[slot] else: newJNull()
-            if payload["decision_id"] != expected:
-              raise newException(ValueError, "stop acknowledgement differs from latest decision")
             if payload["decision_id"].kind != JNull:
               let id = payload["decision_id"].getStr()
               if not state.decisionSeats.hasKey(id) or state.decisionSeats[id] != slot:
@@ -709,10 +711,14 @@ proc websocketHandler(
               raise newException(ValueError, "no-active-call acknowledgement has attempt evidence")
             # Preserve genuine joined transport facts even when the player stops first.
             # They do not grant acknowledgement credit before this engine's stop window.
+            if payload["decision_id"] != expected:
+              raise newException(ValueError, "stop acknowledgement differs from latest decision")
             if not state.stopping:
               raise newException(ValueError, "stop acknowledgement preceded engine stop")
             if receivedAt < state.stopIssuedAt or receivedAt > state.acknowledgementDeadline:
               raise newException(ValueError, "stop acknowledgement is outside cleanup window")
+            if not payload.hasKey("stop_id") or payload["stop_id"] != %state.stopId:
+              raise newException(ValueError, "stop acknowledgement differs from engine stop identity")
             state.stoppedSlots.incl(slot)
         else:
           raise newException(ValueError, "unknown player frame")

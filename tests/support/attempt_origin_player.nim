@@ -52,14 +52,14 @@ while true:
       attempt.responseComplete = some(true)
       attempt.responseReaderJoined = some(true)
     if kind == "premature-stop":
-      socket.send($(%*{"type": "stopped", "decision_id": packet["decision_id"],
+      socket.send($(%*{"type": "stopped", "decision_id": packet["decision_id"], "stop_id": newJNull(),
         "worker_status": "no_active_call", "attempts": []}))
     socket.send($(%*{"type": "action", "decision_id": packet["decision_id"],
       "source": (if kind == "scripted-model-body-mismatch": "scripted" else: "llm"), "action": action, "training_attempt": attempt.attemptEvidenceJson()}))
   of "stop":
     if kind == "premature-stop": break
     let stoppedId = if kind == "stale-stop": %(packet["decision_id"].getStr() & "-stale") else: packet["decision_id"]
-    socket.send($(%*{"type": "stopped", "decision_id": stoppedId,
+    socket.send($(%*{"type": "stopped", "decision_id": stoppedId, "stop_id": packet["stop_id"],
       "worker_status": "no_active_call", "attempts": []}))
     if kind == "stale-stop": break
   of "final": break

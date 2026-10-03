@@ -12,7 +12,10 @@ suite "private external owner lifecycle":
     state.registeredSlots.incl(0)
     state.decisionSeats[id] = 0
     state.decisionIssuedAt[id] = getMonoTime() - initDuration(seconds = 1)
-    state.latestDecisions[0] = id
+    # The engine can issue a later decision while this earlier HTTP reader joins.
+    state.latestDecisions[0] = "babel-next"
+    state.decisionSeats["babel-next"] = 0
+    state.decisionIssuedAt["babel-next"] = getMonoTime()
     var started = newDecisionAttempt(id & "-model", "fixture", aoModel)
     started.prompt = %*["private fixture"]
     started.request = %*{"fixture": true}
@@ -28,7 +31,7 @@ suite "private external owner lifecycle":
     check not state.playerSockets.hasKey(0)
     check state.socketSlots[socket] == 0
     let stopped = %*{"type": "stopped", "decision_id": id,
-      "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
+      "stop_id": newJNull(), "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
     websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
     check state.completedAttempts[id] == received.attemptEvidenceJson()
     check 0 notin state.stoppedSlots
@@ -37,6 +40,23 @@ suite "private external owner lifecycle":
     state.finished = true
     received.responseBodyB64 = some(encode("different bytes"))
     let late = %*{"type": "stopped", "decision_id": id,
-      "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
+      "stop_id": newJNull(), "worker_status": "joined", "attempts": [received.attemptEvidenceJson()]}
     websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $late))
     check state.completedAttempts[id] == stopped["attempts"][0]
+
+  test "acknowledgement must echo the actual issued stop identity":
+    state = GameState()
+    let socket = default(WebSocket)
+    state.socketSlots[socket] = 0
+    state.registeredSlots.incl(0)
+    state.stopping = true
+    state.stopId = "issued-stop-identity"
+    state.stopIssuedAt = getMonoTime() - initDuration(seconds = 1)
+    state.acknowledgementDeadline = getMonoTime() + initDuration(seconds = 1)
+    var stopped = %*{"type": "stopped", "decision_id": newJNull(),
+      "stop_id": "guessed-stop-identity", "worker_status": "no_active_call", "attempts": []}
+    websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
+    check 0 notin state.stoppedSlots
+    stopped["stop_id"] = %state.stopId
+    websocketHandler(socket, MessageEvent, Message(kind: TextMessage, data: $stopped))
+    check 0 in state.stoppedSlots

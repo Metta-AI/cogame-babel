@@ -78,7 +78,7 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
     call.socket.send($(%*{"type": "action", "decision_id": call.decisionId,
       "action": action, "source": source, "training_attempt": attempt}))
 
-proc stopAndAcknowledge(socket: WebSocket, decisionId: JsonNode) =
+proc stopAndAcknowledge(socket: WebSocket, decisionId, stopId: JsonNode) =
   ## Acknowledgement proves this owned worker joined, never a platform receipt.
   requestNativeStop()
   let hadWorker = workerCreated
@@ -86,7 +86,7 @@ proc stopAndAcknowledge(socket: WebSocket, decisionId: JsonNode) =
   var attempts = newJArray()
   withLock evidenceLock:
     if workerEvidence.len > 0: attempts.add(parseJson(workerEvidence))
-  socket.send($(%*{"type": "stopped", "decision_id": decisionId,
+  socket.send($(%*{"type": "stopped", "decision_id": decisionId, "stop_id": stopId,
     "worker_status": (if hadWorker: "joined" else: "no_active_call"),
     "attempts": attempts}))
 
@@ -104,7 +104,7 @@ when isMainModule:
     while true:
       if workerCreated and workerFinished.load(): joinWorker()
       if interruptionRequested() and not acknowledged:
-        stopAndAcknowledge(socket, decisionId)
+        stopAndAcknowledge(socket, decisionId, newJNull())
         acknowledged = true
         break
       if acknowledged and getMonoTime() >= finalDeadline: break
@@ -134,11 +134,11 @@ when isMainModule:
         workerCreated = true
       of "stop":
         finalDeadline = getMonoTime() + initDuration(milliseconds = payload["cleanup_budget_ms"].getInt())
-        stopAndAcknowledge(socket, payload["decision_id"])
+        stopAndAcknowledge(socket, payload["decision_id"], payload["stop_id"])
         acknowledged = true
       of "final":
         if not acknowledged:
-          stopAndAcknowledge(socket, decisionId)
+          stopAndAcknowledge(socket, decisionId, newJNull())
           acknowledged = true
         break
       of "state": discard
@@ -148,5 +148,5 @@ when isMainModule:
     requestNativeStop()
     joinWorker()
     if interrupted and not acknowledged:
-      stopAndAcknowledge(socket, decisionId)
+      stopAndAcknowledge(socket, decisionId, newJNull())
     socket.close()
