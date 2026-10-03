@@ -17,7 +17,7 @@ from pathlib import Path
 GAME, PLAYER = (Path(arg).resolve() for arg in sys.argv[1:3])
 ROOT = Path(__file__).resolve().parents[1]
 
-for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null", "greedy-tokens", "timeout", "unknown"):
+for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null", "greedy-tokens", "provider-error", "malformed-200", "timeout", "unknown"):
     calls = {}
 
     class Messages(http.server.BaseHTTPRequestHandler):
@@ -48,14 +48,16 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
                     "prompt_token_ids": [1, 2], "completion_token_ids": [3, 4],
                     "behavior_log_probs": [-0.5, -0.3] if failure == "sampled" else None, "stop_reason": "eos", "response": text}
             if failure == "greedy-null": payload["sampling_evidence"] = None
-            calls[call_id] = (request, payload)
+            raw_body = "malformed private provider reply" if failure == "malformed-200" and view["slot"] == 0 else json.dumps(payload)
+            body = raw_body.encode()
+            calls[call_id] = (request, payload, raw_body)
             if failure == "timeout" and view["slot"] == 0 and view["round"] == 1:
                 time.sleep(2)
-            body = json.dumps(payload).encode()
-            self.send_response(200)
+            self.send_response(429 if failure == "provider-error" and view["slot"] == 0 else 200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Softmax-Llm-Call-Id", call_id)
+            self.send_header("request-id", "fixture-provider-" + call_id)
             if failure in {"sampled", "greedy-tokens"}:
                 self.send_header("X-Coworld-Checkpoint-Sha256", "a" * 64)
                 self.send_header("X-Coworld-Tokenizer-Sha256", "b" * 64)
@@ -146,17 +148,23 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
                     continue
                 if failure == "timeout" and int(decision["seat"]) == 0 and decision["observation"]["round"] == 1:
                     assert call_id is None and attempt["raw_response"] is None
+                    assert attempt["response_headers"] is None and attempt["provider_request_id"] is None
                     assert attempt["request"]["messages"] and attempt["prompt"]
                     assert attempt["rejection_reason"] == "game decision timeout before player response"
                     assert decision["action_status"] == "fallback" and not attempt["accepted"]
                     assert decision["selected_attempt_id"] is None
                     fallbacks += 1
                     continue
-                request, raw_response = calls[call_id]
+                request, raw_response, raw_body = calls[call_id]
                 recorded_calls.add(call_id)
                 assert attempt["request"] == request
-                assert json.loads(attempt["raw_response"]) == raw_response
-                assert attempt["model"] == "mock/served"
+                assert attempt["raw_response"] == raw_body
+                received_failure = failure in {"provider-error", "malformed-200"} and int(decision["seat"]) == 0
+                assert attempt["model"] == ("mock/fixture" if received_failure else "mock/served")
+                headers = {key.lower(): value for key, value in attempt["response_headers"].items()}
+                assert headers["x-softmax-llm-call-id"] == call_id
+                assert headers["request-id"] == attempt["provider_request_id"] == "fixture-provider-" + call_id
+                assert attempt["decoder"] == {key: request[key] for key in ("temperature", "max_tokens")}
                 if failure in {"sampled", "greedy-tokens"}:
                     assert attempt["prompt_token_ids"] == [1, 2]
                     assert attempt["sampled_token_ids"] == [3, 4]
@@ -177,7 +185,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
                     assert decision["fallback_origin"] and attempt["rejection_reason"]
             assert len(recorded_calls) == (0 if failure == "unknown" else expected - (1 if failure == "timeout" else 0))
             assert recorded_calls <= set(calls)
-            assert fallbacks == (2 if failure in {"invalid-json", "illegal-action"} else 1 if failure == "timeout" else 0)
+            assert fallbacks == (2 if failure in {"invalid-json", "illegal-action", "provider-error", "malformed-200"} else 1 if failure == "timeout" else 0)
             for log in logs: log.flush()
             public_logs = "".join(path.read_text() for path in output.glob("*.log"))
             assert "private-strategy-fixture" not in public_logs and "private-notes-fixture" not in public_logs

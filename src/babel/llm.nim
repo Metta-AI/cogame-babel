@@ -1,16 +1,10 @@
-## Player-side Claude transport, plus prompt templates used by offline
-## post-training export. The game server does not import this module.
-##
-## Credentials, in order of preference:
-##   COWORLD_LLM_ENDPOINT            - hosted sidecar
-##   Bedrock bearer token            - local play
-##   ANTHROPIC_API_KEY                - the key itself
-##   ANTHROPIC_API_KEY_URI            - a URI holding the key
-## With no credentials, the player sends an immediate scripted action.
+## Native sidecar transport and canonical private prompt templates.
+## Missing endpoint selects unsupervised scripted fallback; retired provider
+## credentials never activate inference. The game server does not import this module.
 
 import
   std/[json, math, options, os, strutils, tables],
-  bitworld/runtime, bitworld/decision_trajectory,
+  bitworld/decision_trajectory,
   curly,
   game_policy, sim
 
@@ -18,18 +12,14 @@ export game_policy
 
 const
   TrainingOperatorPrompt* = "Build a shared glyph code from feedback."
-  AnthropicUrl = "https://api.anthropic.com/v1/messages"
   AnthropicVersion = "2023-06-01"
-  BedrockAnthropicVersion = "bedrock-2023-05-31"
 
 type
-  LlmTransport = enum
-    ltNone, ltSidecar, ltBedrock, ltAnthropic
-
   LlmCallEvidence* = object
     prompt*, request*, rawResponse*: JsonNode
     response*, model*: string
-    platformCallId*: Option[string]
+    platformCallId*, providerRequestId*: Option[string]
+    responseHeaders*: Option[Table[string, string]]
     decoder*: JsonNode
     modelIdentity*, tokenizerIdentity*, chatTemplateSha256*, stopReason*: Option[string]
     promptTokenIds*, sampledTokenIds*: Option[seq[int]]
@@ -39,13 +29,7 @@ type
     lastCall*: LlmCallEvidence
     beforeCall*: proc(evidence: LlmCallEvidence) {.closure.}
     curl: Curly
-    transport: LlmTransport
-    apiKey: string          ## anthropic transport
     sidecarEndpoint: string
-    bedrockEndpoint: string ## local Bedrock transport
-    bedrockModels: seq[string]  ## candidates, tried in order on denial
-    bedrockModel: int           ## index into bedrockModels
-    bedrockToken: string
     model: string
     temperature: float
     maxOutputTokens: int
@@ -53,52 +37,9 @@ type
     disabled*: bool    ## true once credentials are known-unavailable
     scripted: ScriptedPolicy
 
-proc resolveApiKey(): string =
-  result = getEnv("ANTHROPIC_API_KEY").strip()
-  if result.len > 0:
-    return
-  let uri = getEnv("ANTHROPIC_API_KEY_URI").strip()
-  if uri.len == 0:
-    return ""
-  try:
-    result = readCogameUri(uri, "ANTHROPIC_API_KEY_URI").strip()
-  except CatchableError as error:
-    echo "babel llm: failed to fetch ANTHROPIC_API_KEY_URI: ", error.msg
-    result = ""
-
-proc bedrockModelIds(): seq[string] =
-  ## Bedrock inference-profile candidates, tried in order. BEDROCK_MODEL
-  ## pins a single id; without it, fall through this list — model access is
-  ## a per-account Marketplace subscription, so an id that works in one
-  ## account 403s in another.
-  let pinned = getEnv("BEDROCK_MODEL").strip()
-  if pinned.len > 0:
-    return @[pinned]
-  ## Haiku leads: hosted Bedrock capacity is shared account-wide and the
-  ## sonnet profiles run out of daily tokens first.
-  @[
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    "us.anthropic.claude-sonnet-4-6",
-    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-  ]
-
-proc tryNextBedrockModel(client: LlmClient, why: string): bool =
-  if client.transport != ltBedrock or
-      client.bedrockModel + 1 >= client.bedrockModels.len:
-    return false
-  client.bedrockModel.inc
-  echo "babel llm: ", client.bedrockModels[client.bedrockModel - 1],
-    " unusable (", why, "); falling back to ",
-    client.bedrockModels[client.bedrockModel]
-  true
-
-proc bedrockUrl(client: LlmClient): string =
-  client.bedrockEndpoint & "/model/" &
-    client.bedrockModels[client.bedrockModel] & "/invoke"
-
 proc newLlmClient*(): LlmClient =
   result = LlmClient(
-    model: getEnv("PLAYER_MODEL", "claude-sonnet-5"),
+    model: getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5"),
     temperature: getEnv("COWORLD_LLM_TEMPERATURE", "1").parseFloat(),
     maxOutputTokens: getEnv("PLAYER_MAX_OUTPUT_TOKENS", "900").parseInt(),
     timeoutSeconds: getEnv("PLAYER_LLM_TIMEOUT_SECONDS", "30").parseInt(),
@@ -109,35 +50,11 @@ proc newLlmClient*(): LlmClient =
     raise newException(ValueError, "COWORLD_LLM_TEMPERATURE must be finite and in 0..1")
   let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
   if sidecarEndpoint.len > 0:
-    result.transport = ltSidecar
     result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
-    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
     result.curl = newCurly()
     return
-  let bedrockEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME").strip()
-  let bedrockToken = getEnv("AWS_BEARER_TOKEN_BEDROCK").strip()
-  if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
-    let region = getEnv("AWS_REGION",
-      getEnv("AWS_DEFAULT_REGION", "us-west-2"))
-    let endpoint =
-      if bedrockEndpoint.len > 0: bedrockEndpoint
-      else: "https://bedrock-runtime." & region & ".amazonaws.com"
-    result.transport = ltBedrock
-    result.bedrockEndpoint = endpoint.strip(chars = {'/'}, leading = false)
-    result.bedrockModels = bedrockModelIds()
-    result.bedrockToken = bedrockToken
-    result.curl = newCurly()
-    echo "babel llm: bedrock transport, url ", result.bedrockUrl
-    return
-  result.apiKey = resolveApiKey()
-  if result.apiKey.len > 0:
-    result.transport = ltAnthropic
-    result.curl = newCurly()
-    echo "babel llm: anthropic transport, model ", result.model
-  else:
-    result.transport = ltNone
-    result.disabled = true
-    echo "babel llm: no LLM credentials; using scripted fallback"
+  result.disabled = true
+  echo "babel llm: no native endpoint; using unsupervised scripted fallback"
 
 proc newScriptedClient*(seed: int): LlmClient =
   ## Runs the baseline without resolving model credentials or opening a transport.
@@ -274,7 +191,7 @@ proc listenerPrompt*(sim: Sim, pair: int, prompt: string): string =
   result.add("Reply with ONLY {\"pick\": \"B\", \"notes\": \"…\"} — the " &
     "letter A, B, C, or D; notes at most " & $MaxNotesLen & " characters.")
 
-# ---- Anthropic / Bedrock transport ------------------------------------------
+# ---- Native sidecar transport ------------------------------------------
 
 proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
     failure = ""): DecisionAttempt =
@@ -286,6 +203,8 @@ proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
   result.rawResponse = evidence.rawResponse
   result.decoder = evidence.decoder
   result.platformCallId = evidence.platformCallId
+  result.responseHeaders = evidence.responseHeaders
+  result.providerRequestId = evidence.providerRequestId
   result.rejectionReason = if failure.len > 0: some(failure) else: none(string)
   result.modelIdentity = evidence.modelIdentity
   result.tokenizerIdentity = evidence.tokenizerIdentity
@@ -308,34 +227,23 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
   }
   var headers: HttpHeaders
   headers["content-type"] = "application/json"
-  if client.transport == ltSidecar and slot >= 0:
-    headers["X-Coworld-Player-Slot"] = $slot
-  var url: string
-  if client.transport == ltBedrock:
-    body["anthropic_version"] = %BedrockAnthropicVersion
-    if client.bedrockToken.len > 0:
-      headers["authorization"] = "Bearer " & client.bedrockToken
-    url = client.bedrockUrl()
-  elif client.transport == ltSidecar:
-    body["model"] = %client.model
-    headers["anthropic-version"] = AnthropicVersion
-    url = client.sidecarEndpoint & "/v1/messages"
-  else:
-    body["model"] = %client.model
-    ## Only the Claude 5 / Opus tiers accept an effort setting; Haiku 4.5
-    ## rejects the whole request with a 400 if it is present.
-    if "haiku" notin client.model and "4-5" notin client.model:
-      body["output_config"] = %*{"effort": "low"}
-    headers["x-api-key"] = client.apiKey
-    headers["anthropic-version"] = AnthropicVersion
-    url = AnthropicUrl
+  headers["X-Coworld-Player-Slot"] = $slot
+  body["model"] = %client.model
+  headers["anthropic-version"] = AnthropicVersion
+  let url = client.sidecarEndpoint & "/v1/messages"
   client.lastCall.request = copy(body)
-  if client.transport == ltBedrock:
-    client.lastCall.model = client.bedrockModels[client.bedrockModel]
   if client.beforeCall != nil:
     client.beforeCall(client.lastCall)
   let response = client.curl.post(url, headers, $body, client.timeoutSeconds)
   client.lastCall.rawResponse = %response.body
+  var receivedHeaders = initTable[string, string]()
+  for (key, value) in response.headers:
+    receivedHeaders[key] = value
+  client.lastCall.responseHeaders = some(receivedHeaders)
+  for key in ["request-id", "x-request-id"]:
+    if response.headers.contains(key):
+      client.lastCall.providerRequestId = some(response.headers[key])
+      break
   if response.headers.contains("X-Softmax-Llm-Call-Id"):
     client.lastCall.platformCallId = some(response.headers["X-Softmax-Llm-Call-Id"])
   for header in ["X-Coworld-Checkpoint-Sha256", "X-Coworld-Tokenizer-Sha256",
@@ -346,20 +254,13 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
       of "X-Coworld-Tokenizer-Sha256": client.lastCall.tokenizerIdentity = some(response.headers[header])
       else: client.lastCall.chatTemplateSha256 = some(response.headers[header])
   if response.code == 401 or response.code == 403:
-    let detail = response.body[0 .. min(response.body.high, 400)]
-    if "Model access is denied" in response.body and
-        client.tryNextBedrockModel("no model access"):
-      raise newException(BabelError,
-        "bedrock model access denied: " & detail)
     client.disabled = true
-    raise newException(BabelError,
-      "llm auth failed (" & $response.code & ") at " & url & ": " & detail)
+    raise newException(BabelError, "native inference auth failed (" & $response.code & ")")
   if response.code == 429:
     let detail = response.body[0 .. min(response.body.high, 300)]
-    discard client.tryNextBedrockModel("throttled")
     raise newException(BabelError, "llm throttled (429): " & detail)
   if response.code < 200 or response.code >= 300:
-    raise newException(BabelError, "anthropic error " & $response.code &
+    raise newException(BabelError, "native inference error " & $response.code &
       ": " & response.body[0 .. min(response.body.high, 300)])
   let payload = parseJson(response.body)
   if payload.hasKey("model"):
@@ -378,9 +279,8 @@ proc completeText*(client: LlmClient, system, user: string, slot: int): string =
     if sampling["behavior_log_probs"].kind != JNull:
       client.lastCall.behaviorLogprobs = some(probabilities)
     client.lastCall.stopReason = some(sampling["stop_reason"].getStr())
-    client.lastCall.decoder["sampling_evidence"] = copy(sampling)
   if payload{"stop_reason"}.getStr() == "refusal":
-    raise newException(BabelError, "anthropic refusal")
+    raise newException(BabelError, "native inference refusal")
   for contentBlock in payload["content"]:
     if contentBlock{"type"}.getStr() == "text":
       result.add(contentBlock{"text"}.getStr())

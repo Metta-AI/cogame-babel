@@ -19,7 +19,7 @@
 ##   player -> game: {"type":"action","id":N,"action":{...}}
 
 import
-  std/[json, locks, options, os, sets, strutils, tables, times],
+  std/[json, locks, monotimes, options, os, sets, strutils, tables, times],
   bitworld/runtime,
   bitworld/decision_trajectory,
   curly,
@@ -36,7 +36,7 @@ type
   GameState = object
     config: GameConfig
     sim: Sim
-    pendingActions: Table[int, JsonNode]
+    pendingActions: Table[int, tuple[payload: JsonNode, receivedAt: MonoTime]]
     pendingAttempts: Table[int, JsonNode]
     playerSockets: Table[int, WebSocket]
     socketSlots: Table[WebSocket, int]
@@ -257,10 +257,10 @@ proc decisionText(sim: Sim, call: Call, decision: Decision): string =
 proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
   {.gcsafe.}:
     let config = state.config
-    let gameStart = epochTime()
-    let deadline = gameStart + config.playerConnectTimeoutSeconds
+    let gameStart = getMonoTime()
+    let deadline = gameStart + initDuration(nanoseconds = int64(config.playerConnectTimeoutSeconds * 1_000_000_000))
 
-    while epochTime() < deadline:
+    while getMonoTime() < deadline:
       var allConnected = false
       withLock stateLock:
         allConnected = state.playerSockets.len >= config.tokens.len
@@ -289,10 +289,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
       else: 0.0
     if timeoutSeconds <= 0.0:
       timeoutSeconds = config.episodeTimeoutSeconds.float
-    let playDeadline =
-      if timeoutSeconds > 0.0: gameStart + timeoutSeconds * PlayBudgetFraction
-      else: 0.0
-    if playDeadline > 0.0:
+    let playDeadline = gameStart + initDuration(milliseconds =
+      int64(timeoutSeconds * PlayBudgetFraction * 1000))
+    if timeoutSeconds > 0.0:
       echo "babel: episode timeout ", timeoutSeconds.int, "s (",
         (if hostedTimeout.len > 0: "from env" else: "assumed"),
         "); playing until ", (timeoutSeconds * PlayBudgetFraction).int, "s"
@@ -307,7 +306,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         if state.sim.done:
           break
         call = state.sim.currentCall()
-        pastDeadline = playDeadline > 0.0 and epochTime() > playDeadline
+        pastDeadline = timeoutSeconds > 0.0 and getMonoTime() > playDeadline
         if call.kind == ckRound:
           if pastDeadline:
             ## The platform kills an episode that outruns its timeout and
@@ -321,7 +320,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             break
           state.sim.beginRound()
           echo "babel: round ", state.sim.round + 1, " of ", config.rounds,
-            " at ", (epochTime() - gameStart).int, "s"
+            " at ", (getMonoTime() - gameStart).inSeconds, "s"
           state.broadcastLocked()
           continue
         simCopy = state.sim
@@ -332,6 +331,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
         state.pendingActions.del(call.seat)
 
       let view = simCopy.decisionView(call)
+      let decisionDeadline = getMonoTime() + initDuration(nanoseconds = int64(config.decisionTimeoutSeconds * 1_000_000_000))
       if hasSocket and not pastDeadline:
         try:
           playerSocket.send($view)
@@ -339,16 +339,18 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           echo "babel: could not send decision to seat ", call.seat
           hasSocket = false
       var response: JsonNode
-      let decisionDeadline = epochTime() + config.decisionTimeoutSeconds.float
-      while hasSocket and not pastDeadline and
-          epochTime() < decisionDeadline:
+      var lateResponse: JsonNode
+      while hasSocket and not pastDeadline:
         withLock stateLock:
           if state.pendingActions.hasKey(call.seat):
             let candidate = state.pendingActions[call.seat]
             state.pendingActions.del(call.seat)
-            if candidate{"id"}.getInt(-1) == view["id"].getInt():
-              response = candidate
-        if response != nil:
+            if candidate.payload{"id"}.getInt(-1) == view["id"].getInt():
+              if candidate.receivedAt <= decisionDeadline:
+                response = candidate.payload
+              else:
+                lateResponse = candidate.payload
+        if response != nil or lateResponse != nil or getMonoTime() >= decisionDeadline:
           break
         sleep(10)
 
@@ -382,7 +384,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             state.sim.applyPick(call.pair, decision.pick, decision.notes, true)
         echo "babel: round ", simCopy.round + 1, " pair ", call.pair, " ",
           decisionText(state.sim, call, decision), " at ",
-          (epochTime() - gameStart).int, "s"
+          (getMonoTime() - gameStart).inSeconds, "s"
         if state.trajectory.isSome:
           let actualAction = state.sim.actionJson(call, decision)
           var attempts: seq[DecisionAttempt]
@@ -391,6 +393,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           if response != nil and response.hasKey("training_attempt") and
               response["training_attempt"].kind == JObject:
             privateEvidence = response["training_attempt"]
+          elif lateResponse != nil and lateResponse.hasKey("training_attempt") and
+              lateResponse["training_attempt"].kind == JObject:
+            privateEvidence = lateResponse["training_attempt"]
           elif state.pendingAttempts.hasKey(call.seat) and
               state.pendingAttempts[call.seat]["id"] == view["id"]:
             privateEvidence = state.pendingAttempts[call.seat]["training_attempt"]
@@ -402,7 +407,9 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
             if rejection.len > 0:
               attempt.rejectionReason = some(rejection)
             elif response == nil:
-              attempt.rejectionReason = some("game decision timeout before player response")
+              attempt.rejectionReason = some(if lateResponse != nil:
+                "late player response after game decision deadline"
+                else: "game decision timeout before player response")
             attempts.add(attempt)
             if not fellBack:
               selected = some(attempt.attemptId)
@@ -530,6 +537,7 @@ proc websocketHandler(
     of OpenEvent:
       discard
     of MessageEvent:
+      let receivedAt = getMonoTime()
       ## mummy hands Ping frames to the application instead of answering
       ## them itself; the platform's certifier pings /global to check the
       ## game is alive, so an unanswered ping fails certification.
@@ -553,7 +561,7 @@ proc websocketHandler(
           if payload.hasKey("training_attempt") and payload["training_attempt"].kind != JNull:
             discard readAttemptEvidence(payload["training_attempt"])
           withLock stateLock:
-            state.pendingActions[slot] = payload
+            state.pendingActions[slot] = (payload: payload, receivedAt: receivedAt)
       except CatchableError as error:
         echo "babel: ignoring invalid player frame"
     of ErrorEvent:
@@ -611,7 +619,7 @@ proc runReplayServer*(runtimeConfig: RuntimeConfig) =
   replayPayloadGlobal = $enriched
 
   let router = buildRouter(replayMode = true)
-  gameServer = newServer(router, websocketHandler)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4)
   echo "babel: replay mode on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)
 
@@ -629,7 +637,7 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   runtimeConfigGlobal = runtimeConfig
 
   let router = buildRouter(replayMode = false)
-  gameServer = newServer(router, websocketHandler)
+  gameServer = newServer(router, websocketHandler, workerThreads = 4)
   createThread(gameThread, runGame, runtimeConfig)
   echo "babel: serving on ", runtimeConfig.host, ":", runtimeConfig.port
   gameServer.serve(Port(runtimeConfig.port), runtimeConfig.host)

@@ -23,8 +23,6 @@ when isMainModule:
   setFilePermissions(output, {fpUserRead, fpUserWrite, fpUserExec})
   let sourceRevision = execProcess("git rev-parse HEAD").strip()
   var
-    trainRows: seq[string]
-    validationRows: seq[string]
     trajectoryRows: seq[string]
     runs = newJArray()
   for seed in firstSeed ..< firstSeed + episodes:
@@ -59,29 +57,11 @@ when isMainModule:
         let actualAction = sim.actionJson(call, decision)
         var teacher = newDecisionAttempt(attemptId, "scripted-babel", aoTeacher)
         teacher.response = %($completion)
-        teacher.rawResponse = %($completion)
         teacher.prompt = prompt
-        teacher.request = %*{"teacher": "scripted-babel", "seed": seed, "observation": view}
-        teacher.model = some("scripted-babel")
-        teacher.modelIdentity = some(sourceRevision)
-        teacher.decoder = %*{"method": "deterministic"}
         teacher.parsedAction = actualAction
         teacher.accepted = true
         trajectory.recordDecision(episodeId & "-" & $decisionId, $call.seat, view,
           @[teacher], some(attemptId), actualAction, asAccepted, terminal = sim.done)
-        let row = %*{
-          "episode_id": "babel-" & $seed,
-          "seed": "babel-" & $seed,
-          "decision_id": decisionId,
-          "prompt": prompt,
-          "completion": [{"role": "assistant", "content": $completion}],
-          "game": "babel",
-          "action_schema_revision": "babel-decision-v1"
-        }
-        if seed mod 5 == 0:
-          validationRows.add($row)
-        else:
-          trainRows.add($row)
         inc decisionId
       of ckNone:
         discard
@@ -93,9 +73,7 @@ when isMainModule:
     trajectory.finish(esCompleted, results, outcomes)
     trajectoryRows.add(trajectory.eventsJsonl().strip())
     runs.add(%*{"seed": seed, "decisions": decisionId, "results": results})
-  writeFile(output / "train.jsonl", trainRows.join("\n") & "\n")
-  writeFile(output / "validation.jsonl", validationRows.join("\n") & "\n")
-  writeFile(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
+  writePrivate(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
   let manifest = %*{
     "schema_version": 1,
     "game": "babel",
@@ -103,11 +81,9 @@ when isMainModule:
     "source_revision": sourceRevision,
     "teacher": "scripted",
     "operator_prompt": operatorPrompt,
-    "train_examples": trainRows.len,
-    "validation_examples": validationRows.len,
+    "episodes": episodes,
+    "labels": "shared importer requires independent content-bound teacher review",
     "runs": runs
   }
-  writeFile(output / "manifest.json", pretty(manifest) & "\n")
-  for name in ["train.jsonl", "validation.jsonl", "trajectories.jsonl", "manifest.json"]:
-    setFilePermissions(output / name, {fpUserRead, fpUserWrite})
-  echo "train=", trainRows.len, " validation=", validationRows.len
+  writePrivate(output / "manifest.json", pretty(manifest) & "\n")
+  echo "episodes=", episodes

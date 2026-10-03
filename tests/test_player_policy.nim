@@ -1,5 +1,5 @@
-import std/unittest
-import babel/[game_policy, player_policy, player_view, sim]
+import std/[os, unittest]
+import babel/[game_policy, llm, player_policy, player_view, sim]
 
 proc playPlayerBaseline(seed: int): Sim =
   var config = defaultGameConfig()
@@ -24,6 +24,16 @@ proc playPlayerBaseline(seed: int): Sim =
       result.applyPick(call.pair, decision.pick, decision.notes, true)
 
 suite "ordinary scripted player":
+  test "retired provider credentials never activate inference":
+    putEnv("COWORLD_LLM_ENDPOINT", "")
+    putEnv("ANTHROPIC_API_KEY", "retired-test-key")
+    putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "http://127.0.0.1:1")
+    defer:
+      delEnv("COWORLD_LLM_ENDPOINT")
+      delEnv("ANTHROPIC_API_KEY")
+      delEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
+    check newLlmClient().disabled
+
   test "complete private-view episodes converge after feedback":
     var successes = 0
     var total = 0
