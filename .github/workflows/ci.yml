@@ -53,6 +53,7 @@ jobs:
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-origin-player tests/support/attempt_origin_player.nim
           python3 tools/test_attempt_origins.py /tmp/babel-game /tmp/babel-origin-player
           python3 tools/test_native_lifecycle.py /tmp/babel-game /tmp/babel-player /tmp/babel-native-lifecycle
+          python3 tools/test_wait_lifecycle.py /tmp/babel-game /tmp/babel-player /tmp/babel-wait-lifecycle
 
   certify:
     runs-on: ubuntu-latest
