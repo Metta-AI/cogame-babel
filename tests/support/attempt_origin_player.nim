@@ -8,7 +8,8 @@ let kind = getEnv("ASSERTED_ORIGIN")
 let origin = case kind
   of "teacher": aoTeacher
   of "human": aoHuman
-  else: aoModel
+  of "model-mismatch", "model-body-mismatch", "scripted-model-body-mismatch": aoModel
+  else: aoUnknown
 let socket = newWebSocket(getEnv("COWORLD_PLAYER_WS_URL"))
 while true:
   let received = socket.receiveMessage()
@@ -17,23 +18,50 @@ while true:
   let packet = parseJson(received.get().data)
   case packet["type"].getStr()
   of "decision":
-    let sampled = scriptedAction(packet)
+    let view = packet["observation"]
+    let sampled = scriptedAction(view)
     var action = copy(sampled)
-    var attempt = newDecisionAttempt("asserted-" & $packet["id"].getInt(), "external-policy", origin)
+    var attempt = newDecisionAttempt(packet["decision_id"].getStr() & "-model", "external-policy", origin)
     attempt.model = some("asserted-teacher")
     attempt.modelIdentity = some(getEnv("COWORLD_SOURCE_REVISION"))
-    attempt.prompt = promptMessages(packet, "external fixture")
-    attempt.request = %*{"asserted_teacher": true, "observation": packet}
+    attempt.prompt = promptMessages(view, "external fixture")
+    attempt.request = %*{"asserted_teacher": true, "observation": view}
     attempt.response = %($sampled)
     attempt.rawResponse = %($sampled)
     attempt.decoder = %*{"method": "deterministic"}
     if kind == "model-mismatch":
-      if packet["role"].getStr() == "speaker":
-        action["tokens"] = %*[packet["alphabet"][0]]
+      if view["role"].getStr() == "speaker":
+        action["tokens"] = %*[view["alphabet"][0]]
       else:
         action["pick"] = %((sampled["pick"].getInt() + 1) mod 4)
-    socket.send($(%*{"type": "action", "protocol": "babel.player.v2", "id": packet["id"],
-      "source": "llm", "action": action, "training_attempt": attempt.attemptEvidenceJson()}))
+    if kind in ["model-mismatch", "model-body-mismatch", "scripted-model-body-mismatch"]:
+      attempt.request = %*{"system": attempt.prompt[0]["content"],
+        "messages": [{"role": "user", "content": attempt.prompt[1]["content"]}],
+        "model": "asserted-teacher", "temperature": 0, "max_tokens": 900}
+      var started = attempt
+      started.response = newJNull()
+      started.rawResponse = newJNull()
+      socket.send($(%*{"type": "attempt_started", "decision_id": packet["decision_id"],
+        "training_attempt": started.attemptEvidenceJson()}))
+      attempt.rawResponse = %($(%*{"model": "asserted-teacher",
+        "content": [{"type": "text", "text": $sampled}]}))
+      if kind in ["model-body-mismatch", "scripted-model-body-mismatch"]:
+        attempt.rawResponse = %($(%*{"model": "asserted-teacher",
+          "content": [{"type": "text", "text": "different native completion"}]}))
+      attempt.httpStatus = some(200)
+      attempt.responseComplete = some(true)
+      attempt.responseReaderJoined = some(true)
+    if kind == "premature-stop":
+      socket.send($(%*{"type": "stopped", "decision_id": packet["decision_id"],
+        "worker_status": "no_active_call", "attempts": []}))
+    socket.send($(%*{"type": "action", "decision_id": packet["decision_id"],
+      "source": (if kind == "scripted-model-body-mismatch": "scripted" else: "llm"), "action": action, "training_attempt": attempt.attemptEvidenceJson()}))
+  of "stop":
+    if kind == "premature-stop": break
+    let stoppedId = if kind == "stale-stop": %(packet["decision_id"].getStr() & "-stale") else: packet["decision_id"]
+    socket.send($(%*{"type": "stopped", "decision_id": stoppedId,
+      "worker_status": "no_active_call", "attempts": []}))
+    if kind == "stale-stop": break
   of "final": break
   else: discard
 socket.close()

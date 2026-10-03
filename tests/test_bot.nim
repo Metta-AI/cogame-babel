@@ -77,16 +77,15 @@ suite "scripted baseline":
       total, " = ", rate
     check rate > 0.75
 
-  test "decide falls back to scripted with a scripted client":
+  test "scripted client advances its source-controlled policy":
     let config = fixture(3, rounds = 4)
     let client = newScriptedClient(config.seed)
     var sim = initSim(config)
     sim.beginRound()
-    let spoken = client.decide(sim, sim.currentCall(), "say shape first",
-      scripted = false)
+    let spoken = client.scriptedAction(sim, sim.currentCall())
     check spoken.tokens == scriptedMessage(sim.plan.targets[0])
     sim.applySpeak(0, spoken.tokens, spoken.notes, true)
-    let picked = client.decide(sim, sim.currentCall(), "", scripted = false)
+    let picked = client.scriptedAction(sim, sim.currentCall())
     sim.applyPick(0, picked.pick, picked.notes, true)
     check sim.currentCall() == (ckSpeak, 1, sim.plan.speakers[1])
 

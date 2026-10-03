@@ -19,11 +19,16 @@ be grounded in-episode from the feedback after each round. Every seat
 keeps private notes the server feeds back verbatim — and records for the
 audience, who watch the dictionaries form.
 
-Each player receives a private `babel.player.v2` decision view and sends an
-ordinary action. The game owns hidden information, glyph validation, scores,
-and replay. The player may use a **scripted baseline** or a Claude prompt. Model credentials and calls stay in the player container. A missing or
-invalid action falls back to the game's scripted baseline, so episodes
-complete when a player fails.
+Each player receives the canonical private `babel.player.v2` observation inside
+a `babel.player.v3` transport envelope and sends an ordinary action.
+Decision identifiers are strings; transport budgets stay outside the observation.
+The player owns one native HTTP worker and acknowledges stop only after joining it.
+The game stages private evidence until bounded acknowledgements, then writes
+private traces before results and replay under one absolute cleanup deadline.
+The game owns hidden information, glyph validation, scores, and replay.
+The player uses a **scripted baseline** or the native LLM sidecar.
+Missing or invalid actions use the game's scripted fallback.
+Unresolved worker shutdown seals a private truncated episode without results or replay.
 
 Seats play under **anonymous cog names** (Sprocket, Gizmo, …): policy
 display names never reach the agents' prompts, so nobody can meta-game
