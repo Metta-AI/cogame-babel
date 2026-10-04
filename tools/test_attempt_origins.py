@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GAME, PLAYER = (str(Path(arg).resolve()) for arg in sys.argv[1:3])
-for origin in ("teacher", "human", "model-mismatch", "model-body-mismatch", "scripted-model-body-mismatch", "stale-stop", "premature-stop", "first-finished-start"):
+for origin in ("first-finished-start", "teacher", "human", "model-mismatch", "model-body-mismatch", "scripted-model-body-mismatch", "stale-stop", "premature-stop"):
     if len(sys.argv) == 4:
         path = Path(sys.argv[3]).resolve() / origin
         path.mkdir(parents=True, exist_ok=False)
