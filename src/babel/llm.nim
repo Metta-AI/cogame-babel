@@ -18,7 +18,8 @@ const
 type
   LlmCallEvidence* = object
     prompt*, request*, rawResponse*: JsonNode
-    response*, model*: string
+    response*: Option[string]
+    model*: string
     platformCallId*, providerRequestId*: Option[string]
     responseHeaders*: Option[Table[string, string]]
     responseBodyB64*, responseHeadersB64*: Option[string]
@@ -73,7 +74,7 @@ proc privateAttempt*(evidence: LlmCallEvidence, attemptId: string,
   result.model = some(evidence.model)
   result.prompt = evidence.prompt
   result.request = evidence.request
-  result.response = %evidence.response
+  result.response = if evidence.response.isSome: %evidence.response.get() else: newJNull()
   result.rawResponse = evidence.rawResponse
   result.decoder = evidence.decoder
   result.platformCallId = evidence.platformCallId
@@ -252,7 +253,7 @@ proc completeText*(client: LlmClient, system, user: string, slot: int,
       if contentBlock["text"].kind != JString:
         raise newException(BabelError, "native text content must be text")
       result.add(contentBlock["text"].getStr())
-  client.lastCall.response = result
+  client.lastCall.response = some(result)
   if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
     raise newException(BabelError, "reply cut off at max_tokens before " &
       "any JSON: " & result[0 .. min(result.high, 160)].replace("\n", " "))

@@ -599,7 +599,8 @@ proc validateAttemptProgress(before, evidence: JsonNode) =
   for key in ["prompt", "request", "decoder", "policy"]:
     if evidence[key] != before[key]:
       raise newException(ValueError, "native progress changed started request evidence")
-  if before["latency_ms"].kind != JNull and evidence != before:
+  if (before["latency_ms"].kind != JNull or
+      before["response_reader_joined"] == %true) and evidence != before:
     raise newException(ValueError, "finished native evidence is immutable")
   for key in ["response_body_b64", "response_headers_b64"]:
     if before[key].kind != JNull and
@@ -665,6 +666,17 @@ proc websocketHandler(
               if frameType == "attempt_started":
                 let attempt = readAttemptEvidence(evidence)
                 if attempt.origin == aoModel:
+                  if not state.pendingAttempts.hasKey(id) and (
+                      attempt.response.kind != JNull or attempt.rawResponse.kind != JNull or
+                      attempt.platformCallId.isSome or attempt.providerRequestId.isSome or
+                      attempt.responseHeaders.isSome or attempt.responseHeadersB64.isSome or
+                      attempt.responseBodyB64.isSome or attempt.responseComplete.isSome or
+                      attempt.responseReaderJoined.isSome or attempt.httpStatus.isSome or
+                      attempt.latencyMs.isSome or attempt.inputTokens.isSome or attempt.outputTokens.isSome or
+                      attempt.promptTokenIds.isSome or attempt.sampledTokenIds.isSome or
+                      attempt.behaviorLogprobs.isSome or attempt.stopReason.isSome or attempt.rejectionReason.isSome or
+                      attempt.modelIdentity.isSome or attempt.tokenizerIdentity.isSome or attempt.chatTemplateSha256.isSome):
+                    raise newException(ValueError, "first model start must precede observed response facts")
                   let view = state.decisionObservations[id]
                   let emptyGuidance = promptMessages(view, "")
                   let prefix = "Your private observation:\n" & $view & "\nOperator guidance:\n"
