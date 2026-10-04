@@ -117,7 +117,8 @@ proc completeText*(client: LlmClient, system, user: string, slot: int,
   client.lastCall.request = copy(body)
   if client.beforeCall != nil:
     client.beforeCall(client.lastCall)
-  let response = performNativePost(url, headers, $body, deadline)
+  var requestControl: NativeRequestControl
+  let response = performNativePost(url, headers, $body, deadline, requestControl)
   client.lastCall.latencyMs = response.latencyMs
   client.lastCall.responseReaderJoined = response.responseReaderJoined
   let observedResponse = response.httpStatus.isSome or response.headerBytes.len > 0 or response.bodyBytes.len > 0
