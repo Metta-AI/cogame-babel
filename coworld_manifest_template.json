@@ -22,9 +22,7 @@
       "run": [
         "/bin/babel"
       ],
-      "env": {
-        "ANTHROPIC_API_KEY_URI": "secret://coworld/babel/anthropic_api_key"
-      },
+      "env": {},
       "source_url": "https://github.com/Metta-AI/cogame-babel/tree/main"
     },
     "config_schema": {
