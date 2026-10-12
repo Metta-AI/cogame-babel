@@ -233,7 +233,7 @@ proc tokenOf*(sim: Sim, seat: int, glyph: string): int =
   ## is not in the alphabet.
   let index = sim.glyphs.find(glyph)
   if index < 0:
-    raise newException(BabelError, "not a glyph of this alphabet: " & glyph)
+    raise newException(BabelError, "not a glyph of this alphabet: " & glyph.escape)
   sim.inversePerm[seat][index]
 
 proc messageText*(sim: Sim, seat: int, tokens: seq[int]): string =
