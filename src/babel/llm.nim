@@ -504,7 +504,7 @@ proc decide*(
       return decision
     except CatchableError as error:
       echo "babel llm: seat ", call.seat, " attempt ", attempt, " failed: ",
-        error.msg
+        error.msg.escape
       if client.disabled:
         break
   echo "babel llm: seat ", call.seat, " falling back to scripted decision"
