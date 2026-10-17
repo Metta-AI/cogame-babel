@@ -2,7 +2,7 @@
 ## nim c -d:release --path:src -o:babel-train-bridge tools/train_bridge.nim
 
 import std/[json, os]
-import babel/[llm, sim, player_view, player_policy]
+import babel/[llm, sim, player_view, player_policy, prompts]
 
 const OperatorPrompt = TrainingOperatorPrompt
 
@@ -28,7 +28,8 @@ proc heads(): JsonNode =
     picks.add(%pick)
   result.add(%*{"name": "pick", "choices": picks})
 
-proc decision(game: Sim, id: int, language: bool, operatorPrompt: string): JsonNode =
+proc decision(game: Sim, id: int, language: bool, operatorPrompt: string,
+    selection: PromptSelection): JsonNode =
   let call = game.currentCall()
   let speaker = call.kind == ckSpeak
   let view = game.decisionView(call)
@@ -48,17 +49,21 @@ proc decision(game: Sim, id: int, language: bool, operatorPrompt: string): JsonN
     else:
       properties["pick"] = %*{"type": "integer", "enum": [0, 1, 2, 3]}
       required = %*["pick"]
-  %*{
+  result = %*{
     "kind": "decision", "game": "babel", "decision_id": id,
     "seat": call.seat, "engine_seat": call.seat, "turn": game.round,
     "semantic_view": view, "inbox": [],
-    "messages": promptMessages(view, operatorPrompt),
+    "messages": promptMessages(view, operatorPrompt, selection),
     "speech_messages": [],
     "action_schema": {"type": "object", "properties": properties,
       "required": required},
     "typed_question": newJNull(),
     "inference_mode": (if language: %"text_action" else: newJNull())
   }
+
+  if language:
+    result["semantic_view"]["prompt_template"] = selection.promptMetadata(
+      result["messages"][0]["content"].getStr(), result["messages"][1]["content"].getStr())
 
 proc encoding(game: Sim, id: int): JsonNode =
   let call = game.currentCall()
@@ -124,12 +129,18 @@ when isMainModule:
   var client: LlmClient
   var fallbackPolicy: ScriptedPolicy
   var id = 0
+  var selection: PromptSelection
   while not stdin.endOfFile:
     let request = parseJson(stdin.readLine())
     var response: JsonNode
     case request["kind"].getStr()
     of "reset":
       doAssert request["players"].getInt() == Seats
+      selection = promptSelection(request)
+      if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
+        raise newException(ValueError, "held-out prompt variants are evaluation-only")
+      if not language and selection.variant != pvCanonical:
+        raise newException(ValueError, "prompt variants require --language")
       let seed = seedOf(request["seed"].getStr())
       var config = defaultGameConfig()
       let runtime = copy(variant["game_config"])
@@ -142,7 +153,7 @@ when isMainModule:
       client = newScriptedClient(seed)
       fallbackPolicy = newScriptedPolicy(seed)
       id = 0
-      response = game.decision(id, language, operatorPrompt)
+      response = game.decision(id, language, operatorPrompt, selection)
     of "encode":
       doAssert not game.done
       response = game.encoding(id)
@@ -186,7 +197,7 @@ when isMainModule:
         if game.currentCall().kind == ckRound:
           game.beginRound()
         response = %*{"kind": "accepted", "action": action,
-          "observation": game.decision(id, language, operatorPrompt)}
+          "observation": game.decision(id, language, operatorPrompt, selection)}
       if rejection.len > 0:
         response["kind"] = %"consumed_rejection"
         response["reason"] = %rejection

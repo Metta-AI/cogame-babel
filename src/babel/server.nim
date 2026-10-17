@@ -30,6 +30,7 @@ import
   game_policy,
   player_view,
   player_policy,
+  prompts,
   sim
 
 const
@@ -46,6 +47,7 @@ type
     terminal: bool
   GameState = object
     config: GameConfig
+    selection: PromptSelection
     sim: Sim
     pendingActions: Table[string, tuple[payload: JsonNode, receivedAt: MonoTime]]
     pendingAttempts: Table[string, JsonNode]
@@ -264,7 +266,16 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
           else:
             received.rejectionReason = some("late native evidence after engine decision")
           attempts = @[received]
-        state.trajectory.get().recordDecision(staged.id, staged.seat, staged.observation,
+        let privateObservation = copy(staged.observation)
+        privateObservation["prompt_selection"] = state.selection.selectionMetadata()
+        var promptAttempts = newJArray()
+        for attempt in attempts:
+          if attempt.origin == aoModel:
+            promptAttempts.add(%*{"attempt_id": attempt.attemptId,
+              "prompt_template": state.selection.promptMetadata(
+                attempt.prompt[0]["content"].getStr(), attempt.prompt[1]["content"].getStr())})
+        privateObservation["prompt_attempts"] = promptAttempts
+        state.trajectory.get().recordDecision(staged.id, staged.seat, privateObservation,
           attempts, staged.selected, staged.executedAction, staged.status,
           terminal = staged.terminal, fallbackOrigin = staged.fallbackOrigin)
       var outcomes = newJObject()
@@ -385,7 +396,7 @@ proc runGame(runtimeConfig: RuntimeConfig) {.gcsafe.} =
           state.latestDecisions[call.seat] = decisionId
         try:
           playerSocket.send($(%*{"type": "decision", "decision_id": decisionId,
-            "observation": view, "transport": {
+            "observation": view, "prompt_selection": state.selection.selectionJson(), "transport": {
               "budget_ms": max(1, (decisionDeadline - getMonoTime()).inMilliseconds),
               "cleanup_budget_ms": 5000}}))
         except CatchableError as error:
@@ -678,7 +689,7 @@ proc websocketHandler(
                       attempt.modelIdentity.isSome or attempt.tokenizerIdentity.isSome or attempt.chatTemplateSha256.isSome):
                     raise newException(ValueError, "first model start must precede observed response facts")
                   let view = state.decisionObservations[id]
-                  let emptyGuidance = promptMessages(view, "")
+                  let emptyGuidance = promptMessages(view, "", state.selection)
                   let prefix = "Your private observation:\n" & $view & "\nOperator guidance:\n"
                   let suffix = emptyGuidance[1]["content"].getStr()[prefix.len .. ^1]
                   let user = attempt.request["messages"][0]["content"].getStr()
@@ -686,7 +697,7 @@ proc websocketHandler(
                       user.len < prefix.len + suffix.len:
                     raise newException(ValueError, "native request differs from issued private observation")
                   let guidance = user[prefix.len ..< user.len - suffix.len]
-                  let expected = promptMessages(view, guidance)
+                  let expected = promptMessages(view, guidance, state.selection)
                   if attempt.prompt != expected or
                       attempt.request["system"] != expected[0]["content"] or
                       attempt.request["messages"] != %*[{"role": "user", "content": user}]:
@@ -836,6 +847,8 @@ proc runGameServer*(config: GameConfig, runtimeConfig: RuntimeConfig) =
   state.episodeTimeoutSeconds = episodeSeconds
   state.episodeDeadline = getMonoTime() + initDuration(milliseconds = int64(episodeSeconds * 1000))
   state.config = config
+  state.selection = promptSelection(if runtimeConfig.config.len > 0:
+    parseJson(runtimeConfig.config) else: newJObject())
   state.sim = initSim(config)
   if getEnv(CogameSaveTrajectoryUriEnv).len > 0:
     state.trajectory = some(newDecisionTrajectory(getEnv("COWORLD_EPISODE_ID"),

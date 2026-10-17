@@ -1,7 +1,7 @@
 ## Socket fixture that asserts fully populated teacher/human evidence as a player.
 import std/[json, monotimes, options, os, times]
 import bitworld/[decision_trajectory, native_websocket]
-import babel/[llm, player_policy]
+import babel/[llm, player_policy, prompts]
 
 let kind = getEnv("ASSERTED_ORIGIN")
 let origin = case kind
@@ -26,7 +26,7 @@ while true:
     var attempt = newDecisionAttempt(packet["decision_id"].getStr() & "-model", "external-policy", origin)
     attempt.model = some("asserted-teacher")
     attempt.modelIdentity = some(getEnv("COWORLD_SOURCE_REVISION"))
-    attempt.prompt = promptMessages(view, "external fixture")
+    attempt.prompt = promptMessages(view, "external fixture", promptSelection(packet["prompt_selection"]))
     attempt.request = %*{"asserted_teacher": true, "observation": view}
     attempt.response = %($sampled)
     attempt.rawResponse = %($sampled)

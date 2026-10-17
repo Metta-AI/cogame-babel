@@ -43,6 +43,7 @@ jobs:
           set -euo pipefail
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/babel-train-bridge
+          python3 tools/test_prompt_variants.py /tmp/babel-train-bridge
 
       - name: Verify real private trajectory capture and fallback attribution
         run: |
@@ -50,6 +51,7 @@ jobs:
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-game src/babel.nim
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-player src/babel_player.nim
           python3 tools/test_hosted_trajectory.py /tmp/babel-game /tmp/babel-player
+          python3 tools/test_prompt_native_games.py /tmp/babel-game /tmp/babel-player /tmp/babel-prompt-native "$(git rev-parse HEAD)"
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-origin-player tests/support/attempt_origin_player.nim
           python3 tools/test_attempt_origins.py /tmp/babel-game /tmp/babel-origin-player
           python3 tools/test_native_lifecycle.py /tmp/babel-game /tmp/babel-player /tmp/babel-native-lifecycle

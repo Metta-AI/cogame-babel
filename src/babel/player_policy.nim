@@ -1,13 +1,11 @@
 ## Scripted and prompt policies over Babel's ordinary private decision view.
 
 import std/[json, monotimes]
-import llm
+import llm, prompts
 
-proc promptMessages*(view: JsonNode, operatorPrompt: string): JsonNode =
-  let system = "You play Babel. Each speaker sends 1 to 8 glyphs from its " &
-    "private alphabet. Each listener picks one of four scenes. Partners see " &
-    "the same tokens under different glyphs. Learn a convention from your " &
-    "own feedback. Reply with one JSON action and optional private notes."
+proc promptMessages*(view: JsonNode, operatorPrompt: string,
+    selection: PromptSelection): JsonNode =
+  let system = selection.systemPrompt()
   let task =
     if view["role"].getStr() == "speaker":
       "Send {\"tokens\":[\"glyph\",...],\"notes\":\"...\"}."
@@ -21,7 +19,7 @@ proc promptMessages*(view: JsonNode, operatorPrompt: string): JsonNode =
   ]
 
 proc promptAction*(client: LlmClient, view: JsonNode,
-    operatorPrompt: string, deadline: MonoTime): JsonNode =
-  let messages = promptMessages(view, operatorPrompt)
+    operatorPrompt: string, selection: PromptSelection, deadline: MonoTime): JsonNode =
+  let messages = promptMessages(view, operatorPrompt, selection)
   extractJsonObject(client.completeText(messages[0]["content"].getStr(),
     messages[1]["content"].getStr(), view["slot"].getInt(), deadline))
