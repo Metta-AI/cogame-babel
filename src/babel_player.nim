@@ -6,7 +6,7 @@
 
 import std/[atomics, json, locks, math, monotimes, options, os, strutils, times]
 import bitworld/[decision_trajectory, native_stop, native_websocket]
-import babel/[llm, player_policy]
+import babel/[llm, player_policy, prompts]
 
 const DefaultPrompt = """
 Invent a compositional code and stick to it: one glyph for each shape,
@@ -27,6 +27,7 @@ type PlayerCall = object
   decisionId, observation, prompt: string
   deadline: MonoTime
   scripted: bool
+  selection: PromptSelection
 
 var
   worker: Thread[PlayerCall]
@@ -65,7 +66,7 @@ proc runDecision(call: PlayerCall) {.gcsafe.} =
       if sent.kind != wsReady:
         raise newException(ValueError, "native attempt start was not delivered")
     try:
-      action = promptAction(client, observation, call.prompt, call.deadline)
+      action = promptAction(client, observation, call.prompt, call.selection, call.deadline)
       source = "llm"
     except CatchableError as error:
       failure = error.msg
@@ -164,6 +165,7 @@ when isMainModule:
         createThread(worker, runDecision, PlayerCall(socket: socket.addr,
           decisionId: decisionId.getStr(), observation: $payload["observation"],
           prompt: prompt, scripted: scripted,
+          selection: promptSelection(payload["prompt_selection"]),
           deadline: min(playerDeadline, receivedAt + initDuration(milliseconds = budget))))
         workerCreated = true
       of "stop":
