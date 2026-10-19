@@ -83,13 +83,14 @@ The source exporter accepts:
 bin/export-posttrain OUTPUT EPISODES FIRST_SEED GAME_VERSION OPERATOR_PROMPT PROMPT_VARIANT PROMPT_SEED
 ```
 
+Mixed exports advance the prompt seed once per episode and record each selection in the manifest.
 Run the exporter from a clean, committed game checkout. Use separate private
 output directories for each training wording and identical scenario seeds. Episode identities include the selected wording and prompt seed;
 scenario-family identities remain tied to the game seed. The shared importer must
 keep every wording of a scenario in the same split. Retain content-bound external
 teacher review; prompt diversity does not admit unreviewed labels.
 
-Held-out briefing and reference wordings are hosted evaluation-only. Freeze
+Held-out briefing and reference wordings require `split: validation` in language bridge resets; training exports reject them. Freeze
 policies, opponents, scenario seeds, seat assignments, and ordinary round budgets
 for paired canonical/held-out runs. Report scores, invalid actions, fallback,
 truncation, and missing evidence separately. Scripted parity tests cannot establish
@@ -101,21 +102,10 @@ After building the bridge, run the complete matched wording panel:
 python3 tools/test_prompt_variants.py /tmp/babel-train-bridge
 ```
 
-An optional second argument names the original bridge binary for paired numeric
-comparisons. The panel checks full 24-round games, role visibility, private notes,
-message hashes, unchanged scripted actions and outcomes, and held-out rejection.
-
-After building the game and ordinary player, run the native-player panel:
-
-```sh
-python3 tools/test_prompt_native_games.py /tmp/babel-game /tmp/babel-player /tmp/babel-prompt-native SOURCE_REVISION
-```
-
-This runs four actual player processes for each of seven direct wordings and five
-mixed selections, using 24 rounds and ordinary pacing. A closed localhost model
-endpoint exercises request evidence and fallback without model responses. The
-panel checks exact request messages, private operator guidance, unchanged actions
-and public replays, and acknowledged worker cleanup before natural process exit.
+The eight complete 24-round games cover every direct wording and one mixed selection.
+They check role visibility, private notes, message hashes, unchanged scripted actions
+and outcomes, and held-out training rejection. The existing hosted-trajectory fixture
+checks mixed selection through real native players and a local model endpoint.
 
 Hosted private observations record `prompt_selection` and `prompt_attempts`.
 Each model attempt's entry carries its identity and hashes of the exact recorded

@@ -137,7 +137,8 @@ when isMainModule:
     of "reset":
       doAssert request["players"].getInt() == Seats
       selection = promptSelection(request)
-      if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
+      if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference} and
+          (not request.hasKey("split") or request["split"].getStr() != "validation"):
         raise newException(ValueError, "held-out prompt variants are evaluation-only")
       if not language and selection.variant != pvCanonical:
         raise newException(ValueError, "prompt variants require --language")

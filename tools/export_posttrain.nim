@@ -14,9 +14,9 @@ when isMainModule:
   let firstSeed = parseInt(args[2])
   let gameVersion = args[3]
   let operatorPrompt = if args.len >= 5: args[4] else: TrainingOperatorPrompt
-  let selection = promptSelection(if args.len == 7:
+  let initialSelection = promptSelection(if args.len == 7:
     %*{"promptVariant": args[5], "promptSeed": parseInt(args[6])} else: newJObject())
-  if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
+  if initialSelection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
     raise newException(ValueError, "held-out prompt variants are evaluation-only")
   doAssert gameVersion.len > 0
   if episodes < 10 or firstSeed < 0:
@@ -35,6 +35,9 @@ when isMainModule:
     trajectoryRows: seq[string]
     runs = newJArray()
   for seed in firstSeed ..< firstSeed + episodes:
+    var selection = initialSelection
+    if selection.variant == pvMixed:
+      selection.seed += seed - firstSeed
     var config = defaultGameConfig()
     config.seed = seed
     for seat in 0 ..< Seats:
@@ -84,7 +87,8 @@ when isMainModule:
       outcomes[$seat] = %sim.score(seat)
     trajectory.finish(esCompleted, results, outcomes)
     trajectoryRows.add(trajectory.eventsJsonl().strip())
-    runs.add(%*{"seed": seed, "decisions": decisionId, "results": results})
+    runs.add(%*{"seed": seed, "decisions": decisionId, "results": results,
+      "prompt_selection": selection.selectionMetadata()})
   writePrivate(output / "trajectories.jsonl", trajectoryRows.join("\n") & "\n")
   let manifest = %*{
     "schema_version": 1,
@@ -93,7 +97,7 @@ when isMainModule:
     "source_revision": sourceRevision,
     "teacher": "scripted",
     "operator_prompt": operatorPrompt,
-    "prompt_selection": selection.selectionMetadata(),
+    "prompt_selection": initialSelection.selectionMetadata(),
     "episodes": episodes,
     "labels": "shared importer requires independent content-bound teacher review",
     "runs": runs
