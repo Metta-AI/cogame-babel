@@ -47,7 +47,7 @@ bin/export-posttrain /tmp/babel-posttrain-corpus 100 11 source-engine-1
 Convert the raw event stream into complete episodes from a Metta checkout:
 
 ```sh
-uv run --package metta-posttraining python - <<'PYTHON'
+uv run --package coworld python - <<'PYTHON'
 from pathlib import Path
 from coworld.decision_trajectory import export_complete_episodes, read_trajectory_jsonl
 
