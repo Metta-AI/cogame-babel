@@ -178,3 +178,7 @@ SHA-256 hashes in `semantic_view.prompt_template`, and rejects held-out training
 wordings. Numeric mode keeps its original prompt and codec. The source exporter
 accepts optional `OPERATOR_PROMPT PROMPT_VARIANT PROMPT_SEED` arguments; it records
 exact teacher prompts, hashes, and selection without changing review requirements.
+
+Game results and replay describe the engine outcome even when a player does not acknowledge shutdown.
+Private training evidence remains truncated, with null participant outcomes, until every native call is accounted for.
+Interrupted or failed games do not publish scores.
