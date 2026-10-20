@@ -46,7 +46,7 @@ when isMainModule:
     config = sampleEpisode(config)
     var sim = initSim(config)
     var decisionId = 0
-    let episodeId = "babel-" & $seed & "-" & $selection.selectedVariant & "-" & $selection.seed
+    let episodeId = "babel-" & $seed & "-" & $selection.variant & "-" & $selection.selectedVariant & "-" & $selection.seed
     let trajectory = newDecisionTrajectory(episodeId, "babel-" & $seed,
       "babel", gameVersion, sourceRevision)
     while not sim.done:

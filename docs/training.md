@@ -111,3 +111,7 @@ Hosted private observations record `prompt_selection` and `prompt_attempts`.
 Each model attempt's entry carries its identity and hashes of the exact recorded
 system and user messages. External actions without native prompt evidence have
 no attempt hashes; selection metadata does not establish a model call.
+
+Episode IDs include requested selection, resolved wording, and prompt seed, so
+matched explicit and mixed collections remain distinct. Scenario families and
+shared importer ownership of review and splitting stay unchanged.
