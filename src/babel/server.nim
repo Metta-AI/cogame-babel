@@ -239,7 +239,6 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
   var results: JsonNode
   var replayData: string
   var finalStatus = status
-  var allAcknowledged = true
   withLock stateLock:
     state.finished = true
     results = state.sim.resultsJson()
@@ -248,7 +247,6 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       cleanup[$slot] = %(if slot in state.stoppedSlots: "acknowledged" else: "unresolved")
       if slot notin state.stoppedSlots:
         finalStatus = esTruncated
-        allAcknowledged = false
     let privateOutcome = copy(results)
     privateOutcome["player_cleanup"] = cleanup
     replayData = state.replayPayload(results)
@@ -289,7 +287,7 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       "correct": results["correct"], "asSpeaker": results["asSpeaker"],
       "asListener": results["asListener"], "names": names,
       "rounds": results["rounds"], "reason": results["reason"]}
-    if allAcknowledged and not interruptionRequested() and status != esFailed:
+    if not interruptionRequested() and status != esFailed:
       for slot, socket in state.playerSockets: socket.send($final)
       state.broadcastLocked()
   if state.trajectory.isSome:
@@ -299,7 +297,7 @@ proc finishEpisode(runtimeConfig: RuntimeConfig, status: EpisodeStatus) =
       of "POST": ahPost
       else: raise newException(ValueError, "trajectory method must be PUT or POST")
     state.trajectory.get().writeTrajectoryArtifact(getEnv(CogameSaveTrajectoryUriEnv), cleanupDeadline, httpMethod)
-  if not interruptionRequested() and status != esFailed and allAcknowledged:
+  if not interruptionRequested() and status != esFailed:
     writeArtifact(runtimeConfig.resultsUri, $results, "application/json", "COGAME_RESULTS_METHOD", cleanupDeadline)
     writeArtifact(runtimeConfig.replayUri, replayData, "application/octet-stream", "COGAME_SAVE_REPLAY_METHOD", cleanupDeadline)
     if getMonoTime() + initDuration(milliseconds = 500) < cleanupDeadline:
