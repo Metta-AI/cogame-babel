@@ -166,6 +166,7 @@ wording. This does not draw game randomness or change alphabets, pairing, notes,
 scoring, budgets, or the canonical private observation.
 
 The `babel.player.v3` envelope carries `prompt_selection` outside its observation.
+Deploy the game and bundled player from the same revision; the player requires this field.
 Native players use it in the shared renderer. The game validates model request
 starts against that renderer, retaining the existing request/response evidence
 and stop acknowledgement contract. Private trajectory observations also record
