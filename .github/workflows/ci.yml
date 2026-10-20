@@ -43,6 +43,7 @@ jobs:
           set -euo pipefail
           nim c --parallelBuild:1 -d:release --path:src -o:/tmp/babel-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/babel-train-bridge
+          python3 tools/test_prompt_variants.py /tmp/babel-train-bridge
 
       - name: Verify real private trajectory capture and fallback attribution
         run: |

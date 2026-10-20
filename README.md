@@ -155,3 +155,26 @@ platform archive join supplies the missing evidence.
 Seat notes remain private in observations and trajectories. Spectator frames and
 new public replay events omit them; historical engine/replay readers retain the
 stored note format.
+
+## Episode-stable rules wording
+
+The game chooses one rules wording for all decisions and seats in an episode.
+`promptVariant` accepts `canonical` (default), `plain`, `numbered`, `questions`,
+`reordered`, `heldout-briefing`, `heldout-reference`, and `mixed`. Mixed requires
+an explicit nonnegative integer `promptSeed`; seed modulo five selects a training
+wording. This does not draw game randomness or change alphabets, pairing, notes,
+scoring, budgets, or the canonical private observation.
+
+The `babel.player.v3` envelope carries `prompt_selection` outside its observation.
+Deploy the game and bundled player from the same revision; the player requires this field.
+Native players use it in the shared renderer. The game validates model request
+starts against that renderer, retaining the existing request/response evidence
+and stop acknowledgement contract. Private trajectory observations also record
+the selected bank `babel-rules-v1`. Public replay and spectator data do not carry
+prompt-selection metadata. Selection records alone do not prove model generation.
+
+The language bridge accepts the same selection in reset, adds exact system/user
+SHA-256 hashes in `semantic_view.prompt_template`, and rejects held-out training
+wordings. Numeric mode keeps its original prompt and codec. The source exporter
+accepts optional `OPERATOR_PROMPT PROMPT_VARIANT PROMPT_SEED` arguments; it records
+exact teacher prompts, hashes, and selection without changing review requirements.

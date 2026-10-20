@@ -92,6 +92,7 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
         config = {"tokens": [f"t{seat}" for seat in range(4)],
                   "players": [{"name": f"p{seat}"} for seat in range(4)],
                   "seed": 7, "rounds": 2, "turnDelayMs": 0,
+                  "promptVariant": "mixed", "promptSeed": 4,
                   "decisionTimeoutSeconds": 1 if failure == "timeout" else 5, "player_connect_timeout_seconds": 5}
         (output / "config.json").write_text(json.dumps(config))
         source = (os.environ["COWORLD_TEST_SOURCE_REVISION"] if "COWORLD_TEST_SOURCE_REVISION" in os.environ
@@ -149,6 +150,10 @@ for failure in (None, "invalid-json", "illegal-action", "sampled", "greedy-null"
             fallbacks = 0
             for decision in decisions:
                 assert decision["visibility"] == "private"
+                assert decision["observation"]["prompt_selection"] == {
+                    "bank": "babel-rules-v1", "variant": "reordered",
+                    "selection": "mixed", "seed": 4,
+                }
                 assert decision["observation"]["slot"] == int(decision["seat"])
                 attempt, = decision["attempts"]
                 assert attempt["inference_mode"] == "text_action"
