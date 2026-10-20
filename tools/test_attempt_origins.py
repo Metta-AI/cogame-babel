@@ -57,7 +57,8 @@ for origin in ("first-finished-start", "teacher", "human", "model-mismatch", "mo
                 assert events[-1]["status"] == ("truncated" if unresolved else "completed")
                 assert len(events[:-1]) == 8
                 if unresolved:
-                    assert not (output / "results.json").exists() and not (output / "replay.json").exists()
+                    assert (output / "results.json").exists() and (output / "replay.json").exists()
+                    assert events[-1]["participant_outcomes"] is None
                     assert set(events[-1]["outcome"]["player_cleanup"].values()) == {"unresolved"}
                 for decision in events[:-1]:
                     if origin == "first-finished-start":
